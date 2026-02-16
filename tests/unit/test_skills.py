@@ -8,7 +8,7 @@ from app.skills.loader_tool import load_skill
 class TestSkillDefinitions:
     def test_skills_type(self):
         assert isinstance(SKILLS, list)
-        assert len(SKILLS) &gt; 0
+        assert len(SKILLS) > 0
         for skill in SKILLS:
             assert isinstance(skill, dict)
             assert "name" in skill
@@ -24,8 +24,8 @@ class TestSkillDefinitions:
 
     def test_skill_descriptions_not_empty(self):
         for skill in SKILLS:
-            assert len(skill["description"]) &gt; 0
-            assert len(skill["content"]) &gt; 0
+            assert len(skill["description"]) > 0
+            assert len(skill["content"]) > 0
 
 
 class TestLoadSkillTool:

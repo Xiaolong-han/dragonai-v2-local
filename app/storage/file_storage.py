@@ -22,7 +22,7 @@ class FileStorage:
         (self.base_dir / "images").mkdir(parents=True, exist_ok=True)
         (self.base_dir / "documents").mkdir(parents=True, exist_ok=True)
 
-    def _get_subdirectory(self, file_type: str) -&gt; str:
+    def _get_subdirectory(self, file_type: str) -> str:
         """根据文件类型获取子目录"""
         if file_type.startswith("image/"):
             return "images"
@@ -33,7 +33,7 @@ class FileStorage:
             return "documents"
         return "uploads"
 
-    def _generate_filename(self, original_filename: str) -&gt; str:
+    def _generate_filename(self, original_filename: str) -> str:
         """生成唯一文件名"""
         ext = Path(original_filename).suffix
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -44,7 +44,7 @@ class FileStorage:
         self,
         file: UploadFile,
         file_type: Optional[str] = None,
-    ) -&gt; dict:
+    ) -> dict:
         """
         保存上传的文件到本地文件系统
 
@@ -77,7 +77,7 @@ class FileStorage:
             "upload_time": datetime.now().isoformat(),
         }
 
-    def get_file_path(self, relative_path: str) -&gt; Optional[Path]:
+    def get_file_path(self, relative_path: str) -> Optional[Path]:
         """
         根据相对路径获取文件的完整路径
 
@@ -92,11 +92,11 @@ class FileStorage:
             return file_path
         return None
 
-    def file_exists(self, relative_path: str) -&gt; bool:
+    def file_exists(self, relative_path: str) -> bool:
         """检查文件是否存在"""
         return (self.base_dir / relative_path).exists()
 
-    def delete_file(self, relative_path: str) -&gt; bool:
+    def delete_file(self, relative_path: str) -> bool:
         """
         删除文件
 
@@ -112,7 +112,7 @@ class FileStorage:
             return True
         return False
 
-    def get_file_info(self, relative_path: str) -&gt; Optional[dict]:
+    def get_file_info(self, relative_path: str) -> Optional[dict]:
         """
         获取文件信息
 

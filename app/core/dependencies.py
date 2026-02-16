@@ -11,14 +11,14 @@ from app.models.user import User
 security = HTTPBearer()
 
 
-async def get_token_from_header(credentials: HTTPAuthorizationCredentials = Depends(security)) -&gt; str:
+async def get_token_from_header(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     return credentials.credentials
 
 
 async def get_current_user(
     token: str = Depends(get_token_from_header),
     db: Session = Depends(get_db)
-) -&gt; User:
+) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -38,7 +38,7 @@ async def get_current_user(
 
 async def get_current_active_user(
     current_user: User = Depends(get_current_user)
-) -&gt; User:
+) -> User:
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user

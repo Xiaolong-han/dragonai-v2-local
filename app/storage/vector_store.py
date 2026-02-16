@@ -26,7 +26,7 @@ class VectorStoreManager:
         self,
         collection_name: str,
         embedding_function: Embeddings
-    ) -&gt; Chroma:
+    ) -> Chroma:
         key = collection_name
         if key not in self._chroma_clients:
             self._chroma_clients[key] = Chroma(

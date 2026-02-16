@@ -19,7 +19,7 @@ class ChatService:
         user_id: int,
         skip: int = 0,
         limit: int = 100
-    ) -&gt; List[Message]:
+    ) -> List[Message]:
         cache_key = f"messages:conversation:{conversation_id}:user:{user_id}:skip:{skip}:limit:{limit}"
         
         async def fetch():
@@ -41,7 +41,7 @@ class ChatService:
         conversation_id: int,
         message_create: MessageCreate,
         user_id: int
-    ) -&gt; Optional[Message]:
+    ) -> Optional[Message]:
         conv = db.query(Conversation).filter(
             Conversation.id == conversation_id,
             Conversation.user_id == user_id
@@ -71,7 +71,7 @@ class ChatService:
         is_expert: bool = False,
         images: Optional[List[str]] = None,
         messages_history: Optional[List[Dict[str, str]]] = None
-    ) -&gt; AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str, None]:
         if model_type == "vision" and images:
             model = ModelFactory.get_vision_model(
                 is_ocr=False,
@@ -111,7 +111,7 @@ class ChatService:
         is_expert: bool = False,
         images: Optional[List[str]] = None,
         messages_history: Optional[List[Dict[str, str]]] = None
-    ) -&gt; str:
+    ) -> str:
         if model_type == "vision" and images:
             model = ModelFactory.get_vision_model(
                 is_ocr=False,

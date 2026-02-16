@@ -10,7 +10,7 @@ from app.core.redis import redis_client, cache_aside
 
 class ConversationService:
     @staticmethod
-    async def get_conversation(db: Session, conversation_id: int, user_id: int) -&gt; Optional[Conversation]:
+    async def get_conversation(db: Session, conversation_id: int, user_id: int) -> Optional[Conversation]:
         cache_key = f"conversation:{conversation_id}:{user_id}"
         
         async def fetch():
@@ -23,7 +23,7 @@ class ConversationService:
         return conv
 
     @staticmethod
-    async def get_conversations(db: Session, user_id: int, skip: int = 0, limit: int = 100) -&gt; List[Conversation]:
+    async def get_conversations(db: Session, user_id: int, skip: int = 0, limit: int = 100) -> List[Conversation]:
         cache_key = f"conversations:user:{user_id}:skip:{skip}:limit:{limit}"
         
         async def fetch():
@@ -37,7 +37,7 @@ class ConversationService:
         return await cache_aside(key=cache_key, ttl=3600, data_func=fetch)
 
     @staticmethod
-    async def create_conversation(db: Session, conversation: ConversationCreate, user_id: int) -&gt; Conversation:
+    async def create_conversation(db: Session, conversation: ConversationCreate, user_id: int) -> Conversation:
         db_conv = Conversation(
             user_id=user_id,
             title=conversation.title,
@@ -57,7 +57,7 @@ class ConversationService:
         conversation_id: int,
         conversation_update: ConversationUpdate,
         user_id: int
-    ) -&gt; Optional[Conversation]:
+    ) -> Optional[Conversation]:
         conv = db.query(Conversation).filter(
             Conversation.id == conversation_id,
             Conversation.user_id == user_id
@@ -77,7 +77,7 @@ class ConversationService:
         return conv
 
     @staticmethod
-    async def delete_conversation(db: Session, conversation_id: int, user_id: int) -&gt; bool:
+    async def delete_conversation(db: Session, conversation_id: int, user_id: int) -> bool:
         conv = db.query(Conversation).filter(
             Conversation.id == conversation_id,
             Conversation.user_id == user_id
@@ -93,7 +93,7 @@ class ConversationService:
         return True
 
     @staticmethod
-    async def pin_conversation(db: Session, conversation_id: int, user_id: int, pinned: bool) -&gt; Optional[Conversation]:
+    async def pin_conversation(db: Session, conversation_id: int, user_id: int, pinned: bool) -> Optional[Conversation]:
         conv = db.query(Conversation).filter(
             Conversation.id == conversation_id,
             Conversation.user_id == user_id

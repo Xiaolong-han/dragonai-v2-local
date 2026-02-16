@@ -10,7 +10,7 @@ class AgentSaverManager:
     def __init__(self):
         self._saver: Optional[BaseCheckpointSaver] = None
 
-    def get_postgres_saver(self) -&gt; PostgresCheckpointSaver:
+    def get_postgres_saver(self) -> PostgresCheckpointSaver:
         if self._saver is None:
             self._saver = PostgresCheckpointSaver(
                 connection_string=settings.database_url

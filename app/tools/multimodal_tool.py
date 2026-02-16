@@ -10,7 +10,7 @@ from app.storage import file_storage
 
 
 @tool
-def ocr_document(image_path: str, prompt: Optional[str] = None) -&gt; str:
+def ocr_document(image_path: str, prompt: Optional[str] = None) -> str:
     """
     使用OCR识别文档或图片中的文字内容
 
@@ -36,7 +36,7 @@ def ocr_document(image_path: str, prompt: Optional[str] = None) -&gt; str:
 
 
 @tool
-def understand_image(image_path: str, prompt: str = "请描述这张图片的内容") -&gt; str:
+def understand_image(image_path: str, prompt: str = "请描述这张图片的内容") -> str:
     """
     理解并分析图片内容
 
@@ -58,7 +58,7 @@ def understand_image(image_path: str, prompt: str = "请描述这张图片的内
     return result
 
 
-def image_to_base64(image_path: str) -&gt; str:
+def image_to_base64(image_path: str) -> str:
     """
     将图片文件转换为base64编码
 
@@ -75,7 +75,7 @@ def image_to_base64(image_path: str) -&gt; str:
 def build_multimodal_message(
     text: str,
     image_paths: Optional[list[str]] = None,
-) -&gt; list[dict]:
+) -> list[dict]:
     """
     构建多模态消息
 

@@ -322,7 +322,7 @@ sudo journalctl -u dragonai -f
 定期备份 PostgreSQL 数据库：
 
 ```bash
-pg_dump -U dragonai_user dragonai &gt; backup_$(date +%Y%m%d).sql
+pg_dump -U dragonai_user dragonai > backup_$(date +%Y%m%d).sql
 ```
 
 ## 常见问题

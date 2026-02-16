@@ -11,7 +11,8 @@ class ImageEditingSkill:
     def edit(
         image_path: str,
         prompt: str,
-        model: str = "qwen-image",
+        model: str = None,
+        is_expert: bool = None,
         size: str = "1024*1024"
     ) -> List[str]:
         """
@@ -21,11 +22,18 @@ class ImageEditingSkill:
             image_path: 待编辑图像的路径
             prompt: 编辑指令
             model: 模型名称，目前主要使用 "qwen-image"
+            is_expert: 是否使用专家模型，True 使用 qwen-image，False 使用 qwen-image（目前只有一个模型）
             size: 输出图像尺寸
 
         Returns:
             编辑后的图像URL列表
         """
+        if model:
+            selected_model = model
+        else:
+            selected_model = "qwen-image"
+        
+        model = selected_model
         with open(image_path, "rb") as f:
             image_base64 = base64.b64encode(f.read()).decode("utf-8")
 
@@ -62,7 +70,8 @@ class ImageEditingSkill:
     async def aedit(
         image_path: str,
         prompt: str,
-        model: str = "qwen-image",
+        model: str = None,
+        is_expert: bool = None,
         size: str = "1024*1024"
     ) -> List[str]:
         """
@@ -72,11 +81,18 @@ class ImageEditingSkill:
             image_path: 待编辑图像的路径
             prompt: 编辑指令
             model: 模型名称，目前主要使用 "qwen-image"
+            is_expert: 是否使用专家模型，True 使用 qwen-image，False 使用 qwen-image（目前只有一个模型）
             size: 输出图像尺寸
 
         Returns:
             编辑后的图像URL列表
         """
+        if model:
+            selected_model = model
+        else:
+            selected_model = "qwen-image"
+        
+        model = selected_model
         with open(image_path, "rb") as f:
             image_base64 = base64.b64encode(f.read()).decode("utf-8")
 

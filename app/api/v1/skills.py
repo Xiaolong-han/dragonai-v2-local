@@ -48,6 +48,7 @@ async def generate_image(request: ImageGenerationRequest):
         images = await ImageGenerationSkill.agenerate(
             prompt=request.prompt,
             model=request.model,
+            is_expert=request.is_expert,
             size=request.size,
             n=request.n
         )
@@ -67,6 +68,7 @@ async def edit_image(request: ImageEditingRequest):
             image_path=request.image_path,
             prompt=request.prompt,
             model=request.model,
+            is_expert=request.is_expert,
             size=request.size
         )
         return {"images": images}
@@ -89,6 +91,7 @@ async def generate_code(request: CodingRequest):
         result = await CodingSkill.acode(
             prompt=request.prompt,
             model=request.model,
+            is_expert=request.is_expert,
             temperature=request.temperature,
             max_tokens=request.max_tokens
         )
@@ -113,13 +116,20 @@ async def translate_text(request: TranslationRequest):
             text=request.text,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
-            model=request.model
+            model=request.model,
+            is_expert=request.is_expert
         )
+        if request.model:
+            model_name = request.model
+        elif request.is_expert:
+            model_name = "qwen-mt-plus"
+        else:
+            model_name = "qwen-mt-flash"
         return TranslationResponse(
             text=translated_text,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
-            model_name=request.model
+            model_name=model_name
         )
     except Exception as e:
         raise HTTPException(

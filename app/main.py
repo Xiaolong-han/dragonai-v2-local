@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.redis import redis_client
-from app.api.v1 import auth, conversations, files, knowledge, skills
+from app.api.v1 import auth, conversations, files, knowledge, skills, models
 
 
 def setup_logging():
@@ -99,6 +99,7 @@ app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(files.router, prefix="/api/v1")
 app.include_router(knowledge.router, prefix="/api/v1/knowledge")
 app.include_router(skills.router, prefix="/api/v1")
+app.include_router(models.router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

@@ -8,7 +8,8 @@ class CodingSkill:
     @staticmethod
     def code(
         prompt: str,
-        model: str = "qwen3-coder-flash",
+        model: str = None,
+        is_expert: bool = None,
         temperature: float = 0.7,
         max_tokens: int = None
     ) -> dict:
@@ -18,13 +19,21 @@ class CodingSkill:
         Args:
             prompt: 编程需求描述
             model: 模型名称，可选 "qwen3-coder-flash" 或 "qwen3-coder-plus"
+            is_expert: 是否使用专家模型，True 使用 qwen3-coder-plus，False 使用 qwen3-coder-flash
             temperature: 温度参数
             max_tokens: 最大token数
 
         Returns:
             包含代码生成结果的字典
         """
-        if model == "qwen3-coder-plus":
+        if model:
+            selected_model = model
+        elif is_expert:
+            selected_model = "qwen3-coder-plus"
+        else:
+            selected_model = "qwen3-coder-flash"
+        
+        if selected_model == "qwen3-coder-plus":
             coder_model = QwenCoderModel.qwen3_coder_plus(
                 temperature=temperature,
                 max_tokens=max_tokens
@@ -41,7 +50,8 @@ class CodingSkill:
     @staticmethod
     async def acode(
         prompt: str,
-        model: str = "qwen3-coder-flash",
+        model: str = None,
+        is_expert: bool = None,
         temperature: float = 0.7,
         max_tokens: int = None
     ) -> dict:
@@ -51,13 +61,21 @@ class CodingSkill:
         Args:
             prompt: 编程需求描述
             model: 模型名称，可选 "qwen3-coder-flash" 或 "qwen3-coder-plus"
+            is_expert: 是否使用专家模型，True 使用 qwen3-coder-plus，False 使用 qwen3-coder-flash
             temperature: 温度参数
             max_tokens: 最大token数
 
         Returns:
             包含代码生成结果的字典
         """
-        if model == "qwen3-coder-plus":
+        if model:
+            selected_model = model
+        elif is_expert:
+            selected_model = "qwen3-coder-plus"
+        else:
+            selected_model = "qwen3-coder-flash"
+        
+        if selected_model == "qwen3-coder-plus":
             coder_model = QwenCoderModel.qwen3_coder_plus(
                 temperature=temperature,
                 max_tokens=max_tokens

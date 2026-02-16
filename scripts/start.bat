@@ -15,12 +15,12 @@ if not exist ".env" (
 )
 
 REM Create required directories
-if not exist "storage" mkdir storage
-if not exist "chroma_db" mkdir chroma_db
-if not exist "logs" mkdir logs
+if not exist "storage" mkdir storage 2>nul
+if not exist "chroma_db" mkdir chroma_db 2>nul
+if not exist "logs" mkdir logs 2>nul
 
 REM Check Python
-python --version &gt;nul 2&gt;&amp;1
+python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Python not found! Please install Python 3.13+
     pause

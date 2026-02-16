@@ -7,7 +7,7 @@ from app.agents.agent_factory import AgentFactory, AgentType, create_general_age
 class TestAgentFactory:
     @pytest.fixture
     def mock_llm(self):
-        with patch('app.agents.agent_factory.LangChainQwenChatModel') as mock:
+        with patch('app.agents.agent_factory.QwenGeneralModel') as mock:
             mock_llm = MagicMock()
             mock.qwen_flash.return_value = mock_llm
             mock.qwen3_max.return_value = mock_llm

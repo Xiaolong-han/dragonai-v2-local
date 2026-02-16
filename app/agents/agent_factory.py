@@ -5,7 +5,7 @@ from enum import Enum
 from langchain.agents import create_agent
 from langchain_core.messages import SystemMessage
 
-from app.llm import LangChainQwenChatModel
+from app.llm import QwenGeneralModel
 from app.tools import (
     search_knowledge_base,
     web_search,
@@ -54,12 +54,12 @@ def create_general_agent(
         配置好的Agent实例
     """
     if model_name == "qwen-flash":
-        llm = LangChainQwenChatModel.qwen_flash(
+        llm = QwenGeneralModel.qwen_flash(
             temperature=temperature,
             thinking=thinking
         )
     elif model_name == "qwen3-max":
-        llm = LangChainQwenChatModel.qwen3_max(
+        llm = QwenGeneralModel.qwen3_max(
             temperature=temperature,
             thinking=thinking
         )

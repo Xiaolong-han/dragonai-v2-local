@@ -30,15 +30,15 @@ class TestSkillDefinitions:
 
 class TestLoadSkillTool:
     def test_load_skill_exists(self):
-        result = load_skill("coding")
+        result = load_skill.func("coding")
         assert result is not None
         assert "coding" in result
 
     def test_load_skill_not_exists(self):
-        result = load_skill("nonexistent_skill")
+        result = load_skill.func("nonexistent_skill")
         assert "not found" in result.lower()
 
     def test_load_skill_image_generation(self):
-        result = load_skill("image_generation")
+        result = load_skill.func("image_generation")
         assert "Image Generation Skill" in result
 

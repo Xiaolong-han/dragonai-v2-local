@@ -9,8 +9,8 @@ from app.models.conversation import Conversation
 
 
 class TestChatService:
-    @pytest.fixture(autouse=True)
-    def setup_data(self, db_session):
+    @pytest_asyncio.fixture(autouse=True)
+    async def setup_data(self, db_session, mock_redis):
         from app.services.user_service import user_service
         from app.services.conversation_service import conversation_service
         from app.schemas.user import UserCreate
@@ -30,14 +30,20 @@ class TestChatService:
         )
         self.conversation_id = self.conv.id
 
-    @pytest.fixture
+    @pytest.fixture(autouse=True)
     def mock_redis(self):
-        with patch('app.services.chat_service.redis_client') as mock:
-            mock.get = AsyncMock(return_value=None)
-            mock.set = AsyncMock(return_value=None)
-            mock.delete = AsyncMock(return_value=None)
-            mock.scan = AsyncMock(return_value=(0, []))
-            yield mock
+        mock_redis_client = AsyncMock()
+        mock_redis_client.get = AsyncMock(return_value=None)
+        mock_redis_client.set = AsyncMock(return_value=None)
+        mock_redis_client.delete = AsyncMock(return_value=None)
+        mock_redis_client.client = AsyncMock()
+        mock_redis_client.client.scan = AsyncMock(return_value=(0, []))
+        mock_redis_client.client.delete = AsyncMock(return_value=None)
+        
+        with patch('app.services.chat_service.redis_client', mock_redis_client), \
+             patch('app.services.conversation_service.redis_client', mock_redis_client), \
+             patch('app.core.redis.redis_client', mock_redis_client):
+            yield mock_redis_client
 
     @pytest.fixture
     def mock_model_factory(self):

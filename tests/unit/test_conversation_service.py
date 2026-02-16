@@ -21,14 +21,19 @@ class TestConversationService:
         self.user = user_service.create_user(db_session, user_create)
         self.user_id = self.user.id
 
-    @pytest.fixture
+    @pytest.fixture(autouse=True)
     def mock_redis(self):
-        with patch('app.services.conversation_service.redis_client') as mock:
-            mock.get = AsyncMock(return_value=None)
-            mock.set = AsyncMock(return_value=None)
-            mock.delete = AsyncMock(return_value=None)
-            mock.scan = AsyncMock(return_value=(0, []))
-            yield mock
+        mock_redis_client = AsyncMock()
+        mock_redis_client.get = AsyncMock(return_value=None)
+        mock_redis_client.set = AsyncMock(return_value=None)
+        mock_redis_client.delete = AsyncMock(return_value=None)
+        mock_redis_client.client = AsyncMock()
+        mock_redis_client.client.scan = AsyncMock(return_value=(0, []))
+        mock_redis_client.client.delete = AsyncMock(return_value=None)
+        
+        with patch('app.services.conversation_service.redis_client', mock_redis_client), \
+             patch('app.core.redis.redis_client', mock_redis_client):
+            yield mock_redis_client
 
     @pytest.mark.asyncio
     async def test_create_conversation(self, db_session, mock_redis):

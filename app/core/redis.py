@@ -2,9 +2,31 @@
 import json
 from typing import Optional, Any, Callable
 from functools import wraps
+from datetime import datetime
 import redis.asyncio as redis
 
 from app.config import settings
+
+
+def is_sqlalchemy_model(obj: Any) -> bool:
+    return hasattr(obj, '__table__')
+
+
+def model_to_dict(obj: Any) -> Any:
+    if isinstance(obj, list):
+        return [model_to_dict(item) for item in obj]
+    
+    if not is_sqlalchemy_model(obj):
+        return obj
+    
+    data = {}
+    for column in obj.__table__.columns:
+        value = getattr(obj, column.name)
+        if isinstance(value, datetime):
+            data[column.name] = value.isoformat()
+        else:
+            data[column.name] = value
+    return data
 
 
 class RedisClient:
@@ -37,6 +59,9 @@ class RedisClient:
         return None
 
     async def set(self, key: str, value: Any, ttl: Optional[int] = None):
+        if is_sqlalchemy_model(value) or (isinstance(value, list) and value and is_sqlalchemy_model(value[0])):
+            value = model_to_dict(value)
+        
         if isinstance(value, (dict, list)):
             value = json.dumps(value)
         await self.client.set(key, value, ex=ttl)

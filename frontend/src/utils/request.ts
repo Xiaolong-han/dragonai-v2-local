@@ -1,0 +1,59 @@
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
+import { ElMessage } from 'element-plus'
+
+const request: AxiosInstance = axios.create({
+  baseURL: 'http://127.0.0.1:8001',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+request.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => {
+    console.error('Request error:', error)
+    return Promise.reject(error)
+  }
+)
+
+request.interceptors.response.use(
+  (response: AxiosResponse) => {
+    return response.data
+  },
+  (error) => {
+    console.error('Response error:', error)
+    if (error.response) {
+      switch (error.response.status) {
+        case 401:
+          ElMessage.error('未授权，请重新登录')
+          localStorage.removeItem('token')
+          break
+        case 403:
+          ElMessage.error('拒绝访问')
+          break
+        case 404:
+          ElMessage.error('请求资源不存在')
+          break
+        case 500:
+          ElMessage.error('服务器内部错误')
+          break
+        default:
+          ElMessage.error(error.response.data?.message || '请求失败')
+      }
+    } else if (error.request) {
+      ElMessage.error('网络错误，请检查网络连接')
+    } else {
+      ElMessage.error('请求失败')
+    }
+    return Promise.reject(error)
+  }
+)
+
+export default request

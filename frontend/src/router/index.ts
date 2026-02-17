@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useConversationStore } from '@/stores/conversation'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -16,31 +17,69 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/',
+    redirect: '/chat'
+  },
+  {
+    path: '/chat',
     component: () => import('../layouts/MainLayout.vue'),
     meta: { requiresAuth: true },
     children: [
       {
         path: '',
-        name: 'Home',
-        component: () => import('../views/Home.vue')
+        name: 'Chat',
+        component: () => import('../views/Chat.vue')
       },
       {
-        path: 'image-generation',
+        path: ':conversationId',
+        name: 'ChatConversation',
+        component: () => import('../views/Chat.vue'),
+        props: true
+      }
+    ]
+  },
+  {
+    path: '/image-generation',
+    component: () => import('../layouts/MainLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
         name: 'ImageGeneration',
         component: () => import('../views/ImageGeneration.vue')
-      },
+      }
+    ]
+  },
+  {
+    path: '/image-editing',
+    component: () => import('../layouts/MainLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
       {
-        path: 'image-editing',
+        path: '',
         name: 'ImageEditing',
         component: () => import('../views/ImageEditing.vue')
-      },
+      }
+    ]
+  },
+  {
+    path: '/coding',
+    component: () => import('../layouts/MainLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
       {
-        path: 'coding',
+        path: '',
         name: 'Coding',
         component: () => import('../views/Coding.vue')
-      },
+      }
+    ]
+  },
+  {
+    path: '/translation',
+    component: () => import('../layouts/MainLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
       {
-        path: 'translation',
+        path: '',
         name: 'Translation',
         component: () => import('../views/Translation.vue')
       }
@@ -55,11 +94,12 @@ const router = createRouter({
 
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
+  const conversationStore = useConversationStore()
   
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
     next('/login')
   } else if ((to.path === '/login' || to.path === '/register') && authStore.isLoggedIn) {
-    next('/')
+    next('/chat')
   } else {
     if (authStore.isLoggedIn && !authStore.user) {
       try {
@@ -70,6 +110,15 @@ router.beforeEach(async (to, _from, next) => {
         return
       }
     }
+    
+    if (authStore.isLoggedIn && conversationStore.conversations.length === 0) {
+      try {
+        await conversationStore.fetchConversations()
+      } catch (error) {
+        console.error('Failed to fetch conversations:', error)
+      }
+    }
+    
     next()
   }
 })

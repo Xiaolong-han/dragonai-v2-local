@@ -21,32 +21,90 @@
 
 <script setup lang="ts">
 import { watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useConversationStore } from '@/stores/conversation'
 import { useChatStore } from '@/stores/chat'
 import ChatMessageList from '@/components/ChatMessageList.vue'
 import ChatInput from '@/components/ChatInput.vue'
 
+interface Props {
+  conversationId?: string
+}
+
+const props = defineProps<Props>()
+const route = useRoute()
+const router = useRouter()
 const conversationStore = useConversationStore()
 const chatStore = useChatStore()
 
 const { currentConversationId } = storeToRefs(conversationStore)
 
+// 从 URL 参数或 props 获取会话 ID
+function getConversationIdFromRoute(): number | null {
+  const id = props.conversationId || route.params.conversationId
+  if (id) {
+    const numId = parseInt(id as string, 10)
+    return isNaN(numId) ? null : numId
+  }
+  return null
+}
+
+// 同步 URL 参数到 store
+async function syncConversationFromRoute() {
+  const routeId = getConversationIdFromRoute()
+  if (routeId && routeId !== currentConversationId.value) {
+    conversationStore.selectConversation(routeId)
+  }
+}
+
+// 监听路由参数变化
 watch(
-  currentConversationId,
+  () => route.params.conversationId,
   async (newId) => {
     if (newId) {
-      await chatStore.fetchConversationHistory(newId)
+      const numId = parseInt(newId as string, 10)
+      if (!isNaN(numId) && numId !== currentConversationId.value) {
+        conversationStore.selectConversation(numId)
+      }
     } else {
+      conversationStore.currentConversationId = null
       chatStore.clearMessages()
     }
   },
   { immediate: true }
 )
 
-function handleSendMessage(content: string) {
+// 监听当前会话 ID 变化，更新 URL
+watch(
+  currentConversationId,
+  async (newId) => {
+    if (newId) {
+      // 更新 URL，但不触发导航
+      const currentRouteId = route.params.conversationId
+      if (currentRouteId !== String(newId)) {
+        router.replace(`/chat/${newId}`)
+      }
+      await chatStore.fetchConversationHistory(newId)
+    } else {
+      chatStore.clearMessages()
+      // 如果没有会话 ID，重定向到 /chat
+      if (route.params.conversationId) {
+        router.replace('/chat')
+      }
+    }
+  }
+)
+
+function handleSendMessage(content: string, files: any[], skill?: string, options?: any) {
   if (!currentConversationId.value) return
-  chatStore.sendMessage(currentConversationId.value, content)
+  
+  // 如果有技能，使用技能发送
+  if (skill) {
+    chatStore.sendMessageWithSkill(currentConversationId.value, content, skill, options)
+  } else {
+    chatStore.sendMessage(currentConversationId.value, content)
+  }
 }
 
 function handleRegenerate(messageIndex: number) {
@@ -55,9 +113,7 @@ function handleRegenerate(messageIndex: number) {
 }
 
 onMounted(() => {
-  if (currentConversationId.value) {
-    chatStore.fetchConversationHistory(currentConversationId.value)
-  }
+  syncConversationFromRoute()
 })
 </script>
 
@@ -65,8 +121,15 @@ onMounted(() => {
 .chat-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
   background: #f5f7fa;
+  overflow: hidden;
+}
+
+.chat-page > *:first-child {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .no-conversation {

@@ -78,22 +78,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ChatDotRound, Edit, Delete, Top, Bottom } from '@element-plus/icons-vue'
 import { useConversationStore } from '@/stores/conversation'
 
+const router = useRouter()
 const conversationStore = useConversationStore()
-const {
-  sortedConversations,
-  currentConversationId,
-  fetchConversations,
-  pinConversation,
-  unpinConversation,
-  selectConversation,
-  updateConversation,
-  deleteConversation
-} = conversationStore
+
+// 使用 computed 保持响应性
+const sortedConversations = computed(() => conversationStore.sortedConversations)
+const currentConversationId = computed(() => conversationStore.currentConversationId)
+const { fetchConversations, pinConversation, unpinConversation, selectConversation, updateConversation, deleteConversation } = conversationStore
 
 const editDialogVisible = ref(false)
 const deleteDialogVisible = ref(false)
@@ -107,6 +104,8 @@ onMounted(() => {
 
 function handleSelectConversation(id: number) {
   selectConversation(id)
+  // 导航到新的 URL
+  router.push(`/chat/${id}`)
 }
 
 async function handlePinConversation(id: number) {

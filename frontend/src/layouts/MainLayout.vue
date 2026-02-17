@@ -73,7 +73,11 @@ const handleLogout = async () => {
 
 const handleNewConversation = async () => {
   try {
-    await conversationStore.createConversation({ title: '新会话' })
+    const conversation = await conversationStore.createConversation({ title: '新会话' })
+    // 导航到新创建的会话
+    if (conversation && conversation.id) {
+      router.push(`/chat/${conversation.id}`)
+    }
     ElMessage.success('会话创建成功')
   } catch (error) {
     ElMessage.error('创建会话失败')
@@ -213,5 +217,8 @@ const handleNewConversation = async () => {
 .content-area {
   flex: 1;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 </style>

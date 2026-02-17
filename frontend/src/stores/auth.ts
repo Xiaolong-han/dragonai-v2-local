@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import request from '@/utils/request'
+import { useConversationStore } from './conversation'
 
 interface User {
   id: number
@@ -34,6 +35,10 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = response.access_token
       localStorage.setItem('token', response.access_token)
       await fetchUserInfo()
+      
+      const conversationStore = useConversationStore()
+      await conversationStore.fetchConversations()
+      
       return response
     } finally {
       loading.value = false

@@ -68,7 +68,7 @@ export const useConversationStore = defineStore('conversation', () => {
       const response = await request.put(`/api/v1/conversations/${conversationId}`, data)
       const index = conversations.value.findIndex(c => c.id === conversationId)
       if (index !== -1) {
-        conversations.value[index] = response
+        conversations.value[index] = { ...conversations.value[index], ...response }
       }
       return response
     } finally {
@@ -95,7 +95,7 @@ export const useConversationStore = defineStore('conversation', () => {
       const response = await request.post(`/api/v1/conversations/${conversationId}/pin`)
       const index = conversations.value.findIndex(c => c.id === conversationId)
       if (index !== -1) {
-        conversations.value[index] = response
+        conversations.value[index] = { ...conversations.value[index], ...response }
       }
       return response
     } finally {
@@ -109,7 +109,7 @@ export const useConversationStore = defineStore('conversation', () => {
       const response = await request.post(`/api/v1/conversations/${conversationId}/unpin`)
       const index = conversations.value.findIndex(c => c.id === conversationId)
       if (index !== -1) {
-        conversations.value[index] = response
+        conversations.value[index] = { ...conversations.value[index], ...response }
       }
       return response
     } finally {

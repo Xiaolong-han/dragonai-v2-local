@@ -1,3 +1,4 @@
+
 <template>
   <div class="message-list" ref="messageListRef">
     <el-empty v-if="messages.length === 0 && !loading" description="暂无消息，开始对话吧！" />
@@ -67,6 +68,26 @@ onMounted(() => {
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  max-height: calc(100vh - 200px);
+}
+
+/* 自定义滚动条样式 */
+.message-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.message-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.message-list::-webkit-scrollbar-thumb {
+  background: #c0c4cc;
+  border-radius: 3px;
+}
+
+.message-list::-webkit-scrollbar-thumb:hover {
+  background: #909399;
 }
 
 .loading-container {
@@ -84,5 +105,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
 }
 </style>

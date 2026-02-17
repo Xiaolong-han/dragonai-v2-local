@@ -1,4 +1,5 @@
 
+import logging
 from typing import List, Optional
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -6,6 +7,9 @@ from sqlalchemy.orm import Session
 from app.models.conversation import Conversation
 from app.schemas.conversation import ConversationCreate, ConversationUpdate
 from app.core.redis import redis_client, cache_aside
+from app.services.chat_service import chat_service
+
+logger = logging.getLogger(__name__)
 
 
 class ConversationService:
@@ -90,6 +94,7 @@ class ConversationService:
         
         await ConversationService._invalidate_conversation_cache(conversation_id, user_id)
         await ConversationService._invalidate_user_cache(user_id)
+        await chat_service._invalidate_messages_cache(conversation_id, user_id)
         return True
 
     @staticmethod
@@ -113,17 +118,28 @@ class ConversationService:
     async def _invalidate_user_cache(user_id: int):
         pattern = f"conversations:user:{user_id}:*"
         cursor = 0
+        all_keys = []
         while True:
             cursor, keys = await redis_client.client.scan(cursor, match=pattern, count=100)
-            if keys:
-                await redis_client.client.delete(*keys)
+            all_keys.extend(keys)
             if cursor == 0:
                 break
+        
+        if all_keys:
+            await redis_client.client.delete(*all_keys)
+            logger.info(f"[CACHE DELETE] 已删除用户会话列表缓存: user_id={user_id}, keys={len(all_keys)}")
+        else:
+            logger.info(f"[CACHE DELETE] 未找到用户会话列表缓存: user_id={user_id}")
 
     @staticmethod
     async def _invalidate_conversation_cache(conversation_id: int, user_id: int):
         cache_key = f"conversation:{conversation_id}:{user_id}"
-        await redis_client.delete(cache_key)
+        exists = await redis_client.exists(cache_key)
+        if exists:
+            await redis_client.delete(cache_key)
+            logger.info(f"[CACHE DELETE] 已删除会话缓存: {cache_key}")
+        else:
+            logger.info(f"[CACHE DELETE] 会话缓存不存在: {cache_key}")
 
 
 conversation_service = ConversationService()

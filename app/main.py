@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.redis import redis_client
+from app.core.cache_warmup import cache_warmup
 from app.api.v1 import auth, conversations, files, knowledge, skills, models, chat
 
 
@@ -56,6 +57,12 @@ async def lifespan(app: FastAPI):
     
     await redis_client.connect()
     logger.info("Redis connected")
+    
+    # 缓存预热
+    try:
+        await cache_warmup.warmup_all()
+    except Exception as e:
+        logger.error(f"Cache warmup failed: {e}")
     
     yield
     

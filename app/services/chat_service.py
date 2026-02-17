@@ -1,4 +1,5 @@
 
+import logging
 from typing import List, Optional, AsyncGenerator, Dict, Any
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -9,6 +10,8 @@ from app.schemas.message import MessageCreate
 from app.core.redis import redis_client, cache_aside
 from app.llm.model_factory import ModelFactory
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class ChatService:
@@ -145,12 +148,18 @@ class ChatService:
     async def _invalidate_messages_cache(conversation_id: int, user_id: int):
         pattern = f"messages:conversation:{conversation_id}:user:{user_id}:*"
         cursor = 0
+        all_keys = []
         while True:
             cursor, keys = await redis_client.client.scan(cursor, match=pattern, count=100)
-            if keys:
-                await redis_client.client.delete(*keys)
+            all_keys.extend(keys)
             if cursor == 0:
                 break
+        
+        if all_keys:
+            await redis_client.client.delete(*all_keys)
+            logger.info(f"[CACHE DELETE] 已删除消息缓存: conversation_id={conversation_id}, user_id={user_id}, keys={len(all_keys)}")
+        else:
+            logger.info(f"[CACHE DELETE] 未找到消息缓存: conversation_id={conversation_id}, user_id={user_id}")
 
 
 chat_service = ChatService()

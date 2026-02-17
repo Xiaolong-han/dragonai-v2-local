@@ -1,13 +1,27 @@
 
 from datetime import datetime
 from typing import Optional, List, Any, Dict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class MessageBase(BaseModel):
     role: str = Field(..., max_length=20)
     content: str
     metadata_: Optional[Dict[str, Any]] = Field(None, alias="metadata")
+
+    @field_validator('metadata_', mode='before')
+    @classmethod
+    def validate_metadata(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return v
+        try:
+            if hasattr(v, '__dict__'):
+                return {}
+            return None
+        except Exception:
+            return None
 
 
 class MessageCreate(MessageBase):

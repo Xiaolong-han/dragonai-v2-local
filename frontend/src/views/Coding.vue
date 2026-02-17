@@ -50,7 +50,7 @@
               :step="100"
               placeholder="留空使用默认"
               style="width: 100%"
-              :controls-position="right"
+              controls-position="right"
             />
           </div>
         </el-card>

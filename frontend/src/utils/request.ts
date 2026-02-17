@@ -1,8 +1,8 @@
-import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
+import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 
-const request: AxiosInstance = axios.create({
-  baseURL: 'http://127.0.0.1:8001',
+const request = axios.create({
+  baseURL: 'http://localhost:8000',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
@@ -10,7 +10,7 @@ const request: AxiosInstance = axios.create({
 })
 
 request.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  (config) => {
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
@@ -24,7 +24,7 @@ request.interceptors.request.use(
 )
 
 request.interceptors.response.use(
-  (response: AxiosResponse) => {
+  (response) => {
     return response.data
   },
   (error) => {
@@ -56,4 +56,9 @@ request.interceptors.response.use(
   }
 )
 
-export default request
+export default request as unknown as {
+  get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T>
+  post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T>
+  put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T>
+  delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<T>
+}

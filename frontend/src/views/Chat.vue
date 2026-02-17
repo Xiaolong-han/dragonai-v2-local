@@ -21,6 +21,7 @@
 
 <script setup lang="ts">
 import { watch, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useConversationStore } from '@/stores/conversation'
 import { useChatStore } from '@/stores/chat'
 import ChatMessageList from '@/components/ChatMessageList.vue'
@@ -29,7 +30,7 @@ import ChatInput from '@/components/ChatInput.vue'
 const conversationStore = useConversationStore()
 const chatStore = useChatStore()
 
-const currentConversationId = conversationStore.currentConversationId
+const { currentConversationId } = storeToRefs(conversationStore)
 
 watch(
   currentConversationId,

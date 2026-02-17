@@ -1,8 +1,8 @@
 <template>
   <div class="message-bubble" :class="{ 'user-message': message.role === 'user', 'assistant-message': message.role === 'assistant' }">
     <div class="message-avatar">
-      <el-icon v-if="message.role === 'user'" size="20"><User /></el-icon>
-      <el-icon v-else size="20"><ChatDotRound /></el-icon>
+      <el-icon v-if="message.role === 'user'" size="24"><User /></el-icon>
+      <el-icon v-else size="24"><ChatDotRound /></el-icon>
     </div>
     <div class="message-content">
       <div class="message-role">{{ message.role === 'user' ? '用户' : '助手' }}</div>
@@ -73,9 +73,9 @@ function handleRegenerate() {
 <style scoped>
 .message-bubble {
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
-  max-width: 85%;
+  gap: 16px;
+  margin-bottom: 24px;
+  max-width: 90%;
 }
 
 .user-message {
@@ -88,35 +88,37 @@ function handleRegenerate() {
 }
 
 .message-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
 }
 
 .user-message .message-avatar {
-  background: #409eff;
+  background: var(--primary-color);
   color: white;
 }
 
 .assistant-message .message-avatar {
-  background: #67c23a;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   color: white;
 }
 
 .message-content {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .message-role {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-tertiary);
   font-weight: 500;
+  padding: 0 4px;
 }
 
 .user-message .message-role {
@@ -124,27 +126,29 @@ function handleRegenerate() {
 }
 
 .message-text {
-  padding: 12px 16px;
-  border-radius: 12px;
-  line-height: 1.6;
+  padding: 14px 18px;
+  border-radius: var(--radius-lg);
+  line-height: 1.7;
   word-wrap: break-word;
+  font-size: 15px;
 }
 
 .user-message .message-text {
-  background: #409eff;
+  background: var(--primary-color);
   color: white;
-  border-top-right-radius: 4px;
+  border-bottom-right-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
 }
 
 .assistant-message .message-text {
-  background: white;
-  color: #303133;
-  border-top-left-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-bottom-left-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
 }
 
 .message-text :deep(p) {
-  margin: 0 0 8px 0;
+  margin: 0 0 12px 0;
 }
 
 .message-text :deep(p:last-child) {
@@ -152,36 +156,140 @@ function handleRegenerate() {
 }
 
 .message-text :deep(pre) {
-  margin: 8px 0;
-  padding: 12px;
-  background: #f5f7fa;
-  border-radius: 6px;
+  margin: 12px 0;
+  padding: 16px;
+  background: #1e1e1e;
+  border-radius: var(--radius-md);
   overflow-x: auto;
+  box-shadow: var(--shadow-sm);
 }
 
 .message-text :deep(code) {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   font-size: 14px;
 }
 
 .message-text :deep(pre code) {
   background: transparent;
   padding: 0;
+  color: #d4d4d4;
+  line-height: 1.6;
 }
 
 .assistant-message .message-text :deep(pre) {
-  background: #f5f7fa;
+  background: #1e1e1e;
+}
+
+.user-message .message-text :deep(pre) {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.user-message .message-text :deep(pre code) {
+  color: #f0f0f0;
+}
+
+.message-text :deep(strong) {
+  font-weight: 600;
+}
+
+.message-text :deep(a) {
+  color: var(--primary-color);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--transition-fast);
+}
+
+.message-text :deep(a:hover) {
+  border-bottom-color: var(--primary-color);
+}
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.message-text :deep(li) {
+  margin: 4px 0;
+}
+
+.message-text :deep(blockquote) {
+  margin: 12px 0;
+  padding: 10px 16px;
+  border-left: 4px solid var(--primary-color);
+  background: rgba(45, 125, 255, 0.05);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  color: var(--text-secondary);
+}
+
+.user-message .message-text :deep(blockquote) {
+  border-left-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.message-text :deep(h1),
+.message-text :deep(h2),
+.message-text :deep(h3),
+.message-text :deep(h4) {
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+}
+
+.message-text :deep(h1) {
+  font-size: 24px;
+}
+
+.message-text :deep(h2) {
+  font-size: 20px;
+}
+
+.message-text :deep(h3) {
+  font-size: 18px;
+}
+
+.message-text :deep(h4) {
+  font-size: 16px;
+}
+
+.message-text :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.message-text :deep(th),
+.message-text :deep(td) {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.message-text :deep(th) {
+  background: var(--bg-secondary);
+  font-weight: 600;
+}
+
+.user-message .message-text :deep(th) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.user-message .message-text :deep(th),
+.user-message .message-text :deep(td) {
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .message-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 4px;
 }
 
 .message-time {
   font-size: 11px;
-  color: #c0c4cc;
+  color: var(--text-tertiary);
 }
 
 .user-message .message-time {
@@ -190,6 +298,16 @@ function handleRegenerate() {
 
 .message-actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
+}
+
+.message-actions :deep(.el-button) {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-normal);
+}
+
+.message-actions :deep(.el-button:hover) {
+  background: rgba(45, 125, 255, 0.1);
 }
 </style>

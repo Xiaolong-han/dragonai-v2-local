@@ -1,33 +1,36 @@
 <template>
   <div class="chat-page">
-    <template v-if="currentConversationId">
-      <ChatMessageList :messages="chatStore.messages" :loading="chatStore.loading" />
-      <ChatInput
-        :loading="chatStore.sending"
-        :disabled="chatStore.loading"
-        @send="handleSendMessage"
-      />
+    <template v-if="conversationStore.currentConversationId">
+      <div class="chat-container">
+        <div class="chat-content">
+          <ChatMessageList :messages="chatStore.messages" :loading="chatStore.loading" />
+        </div>
+        <div class="chat-input-wrapper">
+          <ChatInput
+            :loading="chatStore.sending"
+            :disabled="chatStore.loading"
+            @send="handleSendMessage"
+          />
+        </div>
+      </div>
     </template>
-    <div v-else class="no-conversation">
-      <el-empty description="请选择或创建一个对话" />
-    </div>
+    <WelcomeView @send-message="handleQuickMessage" />
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { watch, onMounted } from 'vue'
 import { useConversationStore } from '@/stores/conversation'
 import { useChatStore } from '@/stores/chat'
 import ChatMessageList from '@/components/ChatMessageList.vue'
 import ChatInput from '@/components/ChatInput.vue'
+import WelcomeView from '@/components/WelcomeView.vue'
 
 const conversationStore = useConversationStore()
 const chatStore = useChatStore()
 
-const currentConversationId = conversationStore.currentConversationId
-
 watch(
-  currentConversationId,
+  () => conversationStore.currentConversationId,
   async (newId) => {
     if (newId) {
       await chatStore.fetchConversationHistory(newId)
@@ -38,14 +41,22 @@ watch(
   { immediate: true }
 )
 
-async function handleSendMessage(content: string) {
-  if (!currentConversationId.value) return
-  await chatStore.sendMessage(currentConversationId.value, content)
+async function handleSendMessage(content) {
+  if (!conversationStore.currentConversationId) return
+  await chatStore.sendMessage(conversationStore.currentConversationId, content)
+}
+
+async function handleQuickMessage(content) {
+  const title = content.length > 20 ? content.slice(0, 20) + '...' : content
+  const conversation = await conversationStore.createConversation({ title })
+  if (conversation) {
+    await chatStore.sendMessage(conversation.id, content)
+  }
 }
 
 onMounted(() => {
-  if (currentConversationId.value) {
-    chatStore.fetchConversationHistory(currentConversationId.value)
+  if (conversationStore.currentConversationId) {
+    chatStore.fetchConversationHistory(conversationStore.currentConversationId)
   }
 })
 </script>
@@ -55,13 +66,25 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f5f7fa;
+  background: #f7f8fa;
 }
 
-.no-conversation {
-  flex: 1;
+.chat-container {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  height: 100%;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.chat-content {
+  flex: 1;
+  overflow: hidden;
+  padding: 0 24px;
+}
+
+.chat-input-wrapper {
+  padding: 16px 24px 24px;
 }
 </style>

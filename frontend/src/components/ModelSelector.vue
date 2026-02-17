@@ -36,32 +36,21 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref, computed, onMounted } from 'vue'
 import { Setting, ArrowDown } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
-interface ChatModel {
-  name: string
-  is_expert: boolean
-}
-
-interface Props {
-  modelValue?: ChatModel | null
-}
-
-interface Emits {
-  (e: 'update:modelValue', value: ChatModel | null): void
-  (e: 'change', value: ChatModel | null): void
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  modelValue: null
+const props = defineProps({
+  modelValue: {
+    type: Object,
+    default: null
+  }
 })
 
-const emit = defineEmits<Emits>()
+const emit = defineEmits(['update:modelValue', 'change'])
 
-const models = ref<ChatModel[]>([])
+const models = ref([])
 const loading = ref(false)
 
 const currentModel = computed(() => props.modelValue || (fastModels.value[0] || null))
@@ -73,7 +62,7 @@ async function fetchModels() {
   loading.value = true
   try {
     const data = await request.get('/api/v1/models/chat')
-    models.value = data as ChatModel[]
+    models.value = data || []
     if (!props.modelValue && models.value.length > 0) {
       const defaultModel = fastModels.value[0] || models.value[0]
       emit('update:modelValue', defaultModel)
@@ -86,7 +75,7 @@ async function fetchModels() {
   }
 }
 
-function handleSelectModel(model: ChatModel) {
+function handleSelectModel(model) {
   emit('update:modelValue', model)
   emit('change', model)
 }

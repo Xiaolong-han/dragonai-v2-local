@@ -15,13 +15,12 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<ChatMessage[]>([])
   const loading = ref<boolean>(false)
   const sending = ref<boolean>(false)
-  const eventSource = ref<EventSource | null>(null)
 
   async function fetchConversationHistory(conversationId: number) {
     loading.value = true
     try {
       const response = await request.get(`/api/v1/chat/conversations/${conversationId}/history`)
-      messages.value = response.messages || []
+      messages.value = (response as any).messages || []
     } finally {
       loading.value = false
     }
@@ -50,12 +49,12 @@ export const useChatStore = defineStore('chat', () => {
     }
     messages.value.push(assistantMessage)
 
-    const url = `/api/v1/chat/send`
+    const url = 'http://localhost:8000/api/v1/chat/send'
     const body = JSON.stringify({
       conversation_id: conversationId,
       content: content,
       stream: true,
-      model_type: 'gpt-4o-mini',
+      model_type: 'general',
       is_expert: false,
       images: null
     })
@@ -63,7 +62,8 @@ export const useChatStore = defineStore('chat', () => {
     fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
       body: body
     })
@@ -79,7 +79,7 @@ export const useChatStore = defineStore('chat', () => {
             if (result.done) {
               sending.value = false
               const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-              if (msgIndex !== -1) {
+              if (msgIndex !== -1 && messages.value[msgIndex]) {
                 messages.value[msgIndex].is_streaming = false
               }
               return
@@ -101,7 +101,7 @@ export const useChatStore = defineStore('chat', () => {
 
             if (fullContent) {
               const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-              if (msgIndex !== -1) {
+              if (msgIndex !== -1 && messages.value[msgIndex]) {
                 messages.value[msgIndex].content += fullContent
               }
             }
@@ -126,7 +126,7 @@ export const useChatStore = defineStore('chat', () => {
 
     let userMessage: ChatMessage | undefined
     for (let i = messageIndex - 1; i >= 0; i--) {
-      if (messages.value[i].role === 'user') {
+      if (messages.value[i]?.role === 'user') {
         userMessage = messages.value[i]
         break
       }

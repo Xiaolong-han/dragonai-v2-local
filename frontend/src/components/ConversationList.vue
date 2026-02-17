@@ -1,50 +1,55 @@
 <template>
   <div class="conversation-list">
-    <button class="new-chat-btn" @click="handleNewConversation">
-      <span>+ 新建会话</span>
-    </button>
-
     <div class="conversations">
-      <div v-for="conversation in sortedConversations" :key="conversation.id" class="conversation-item">
-        <div
-          :class="['conversation-title', { active: currentConversationId === conversation.id }]"
-          @click="handleSelectConversation(conversation.id)"
-        >
-          <span v-if="conversation.is_pinned" class="pin-icon">📌</span>
+      <div 
+        v-for="conversation in sortedConversations" 
+        :key="conversation.id" 
+        class="conversation-item"
+        @click="handleSelectConversation(conversation.id)"
+      >
+        <div :class="['conversation-content', { active: currentConversationId === conversation.id }]">
+          <el-icon class="chat-icon"><ChatDotRound /></el-icon>
+          <span v-if="conversation.is_pinned" class="pin-icon">
+            <el-icon><Top /></el-icon>
+          </span>
           <span class="title-text">{{ conversation.title }}</span>
         </div>
-
-        <div class="conversation-actions">
-          <button
+        
+        <div class="conversation-actions" @click.stop>
+          <el-button
             v-if="!conversation.is_pinned"
             class="action-btn"
-            @click.stop="handlePinConversation(conversation.id)"
+            link
+            @click="handlePinConversation(conversation.id)"
             title="置顶"
           >
-            📌
-          </button>
-          <button
+            <el-icon><Top /></el-icon>
+          </el-button>
+          <el-button
             v-else
             class="action-btn"
-            @click.stop="handleUnpinConversation(conversation.id)"
+            link
+            @click="handleUnpinConversation(conversation.id)"
             title="取消置顶"
           >
-            📌
-          </button>
-          <button
+            <el-icon><Bottom /></el-icon>
+          </el-button>
+          <el-button
             class="action-btn"
-            @click.stop="handleEditConversation(conversation)"
+            link
+            @click="handleEditConversation(conversation)"
             title="重命名"
           >
-            ✏️
-          </button>
-          <button
+            <el-icon><Edit /></el-icon>
+          </el-button>
+          <el-button
             class="action-btn"
-            @click.stop="handleDeleteConversation(conversation.id)"
+            link
+            @click="handleDeleteConversation(conversation.id)"
             title="删除"
           >
-            🗑️
-          </button>
+            <el-icon><Delete /></el-icon>
+          </el-button>
         </div>
       </div>
     </div>
@@ -75,20 +80,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ChatDotRound, Edit, Delete, Top, Bottom } from '@element-plus/icons-vue'
 import { useConversationStore } from '@/stores/conversation'
 
 const conversationStore = useConversationStore()
 const {
   sortedConversations,
   currentConversationId,
-  loading,
   fetchConversations,
-  createConversation,
-  updateConversation,
-  deleteConversation,
   pinConversation,
   unpinConversation,
-  selectConversation
+  selectConversation,
+  updateConversation,
+  deleteConversation
 } = conversationStore
 
 const editDialogVisible = ref(false)
@@ -100,15 +104,6 @@ const deletingId = ref<number | null>(null)
 onMounted(() => {
   fetchConversations()
 })
-
-async function handleNewConversation() {
-  try {
-    await createConversation({ title: '新会话' })
-    ElMessage.success('会话创建成功')
-  } catch (error) {
-    ElMessage.error('创建会话失败')
-  }
-}
 
 function handleSelectConversation(id: number) {
   selectConversation(id)
@@ -173,76 +168,98 @@ async function handleConfirmDelete() {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 16px;
-}
-
-.new-chat-btn {
-  width: 100%;
-  padding: 12px;
-  margin-bottom: 16px;
-  background: #409eff;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
-}
-
-.new-chat-btn:hover {
-  background: #66b1ff;
 }
 
 .conversations {
   flex: 1;
   overflow-y: auto;
+  padding-right: 4px;
+}
+
+.conversations::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversations::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.conversations::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
+  border-radius: 3px;
+}
+
+.conversations::-webkit-scrollbar-thumb:hover {
+  background: #bfbfbf;
 }
 
 .conversation-item {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  padding: 10px 12px;
   margin-bottom: 4px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  position: relative;
 }
 
 .conversation-item:hover {
   background: #f5f7fa;
 }
 
-.conversation-title {
+.conversation-content {
   flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
   overflow: hidden;
+  padding: 4px 0;
 }
 
-.conversation-title.active {
-  background: #ecf5ff;
-  border-radius: 4px;
-  padding: 4px 8px;
-  margin: -4px -8px;
+.conversation-content.active {
+  background: #e6f4ff;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: -4px -4px;
+}
+
+.conversation-content.active .chat-icon {
+  color: #1677ff;
+}
+
+.chat-icon {
+  flex-shrink: 0;
+  color: #8c8c8c;
+  font-size: 16px;
 }
 
 .pin-icon {
   flex-shrink: 0;
+  color: #faad14;
+  font-size: 14px;
 }
 
 .title-text {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
+  color: #1f2329;
+}
+
+.conversation-content.active .title-text {
+  color: #1677ff;
+  font-weight: 500;
 }
 
 .conversation-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   opacity: 0;
   transition: opacity 0.2s;
+  padding-left: 4px;
 }
 
 .conversation-item:hover .conversation-actions {
@@ -250,16 +267,11 @@ async function handleConfirmDelete() {
 }
 
 .action-btn {
-  padding: 4px 8px;
-  background: none;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
+  padding: 4px;
+  color: #8c8c8c;
 }
 
 .action-btn:hover {
-  background: #e4e7ed;
+  color: #1677ff;
 }
 </style>

@@ -21,11 +21,31 @@ def model_to_dict(obj: Any) -> Any:
     
     data = {}
     for column in obj.__table__.columns:
-        value = getattr(obj, column.name)
-        if isinstance(value, datetime):
-            data[column.name] = value.isoformat()
-        else:
-            data[column.name] = value
+        column_name = column.name
+        try:
+            value = None
+            try:
+                value = getattr(obj, column_name)
+            except AttributeError:
+                if column_name == 'metadata' and hasattr(obj, 'metadata_'):
+                    value = getattr(obj, 'metadata_')
+                else:
+                    value = None
+            
+            if isinstance(value, datetime):
+                data[column_name] = value.isoformat()
+            elif value is not None:
+                if isinstance(value, (str, int, float, bool, list, dict)):
+                    data[column_name] = value
+                else:
+                    try:
+                        data[column_name] = json.dumps(value)
+                    except (TypeError, ValueError):
+                        data[column_name] = str(value)
+            else:
+                data[column_name] = None
+        except Exception:
+            data[column_name] = None
     return data
 
 
@@ -109,4 +129,3 @@ def cached(ttl: int = 3600, key_prefix: str = "cache"):
 
         return wrapper
     return decorator
-

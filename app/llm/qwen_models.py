@@ -126,13 +126,19 @@ class QwenChatModel:
         choice = response.choices[0]
         message = choice.message
         
-        return {
-            "content": message.content or "",
-            "thinking_content": getattr(message, "thinking_content", None),
-            "reasoning_content": getattr(message, "reasoning_content", None),
-            "usage": response.usage.model_dump() if response.usage else None,
-            "model_name": self.model_name,
-        }
+        class Response:
+            def __init__(self, content, **kwargs):
+                self.content = content
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+        
+        return Response(
+            content=message.content or "",
+            thinking_content=getattr(message, "thinking_content", None),
+            reasoning_content=getattr(message, "reasoning_content", None),
+            usage=response.usage.model_dump() if response.usage else None,
+            model_name=self.model_name,
+        )
     
     def _handle_stream_response(self, response):
         """处理流式响应"""
@@ -152,12 +158,18 @@ class QwenChatModel:
         
         full_content = "".join(content_parts)
         
-        return {
-            "content": full_content,
-            "thinking_content": thinking_content if thinking_content else None,
-            "reasoning_content": reasoning_content if reasoning_content else None,
-            "model_name": self.model_name,
-        }
+        class Response:
+            def __init__(self, content, **kwargs):
+                self.content = content
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+        
+        return Response(
+            content=full_content,
+            thinking_content=thinking_content if thinking_content else None,
+            reasoning_content=reasoning_content if reasoning_content else None,
+            model_name=self.model_name,
+        )
     
     async def _ahandle_stream_response(self, response):
         """处理异步流式响应"""
@@ -177,12 +189,92 @@ class QwenChatModel:
         
         full_content = "".join(content_parts)
         
-        return {
-            "content": full_content,
-            "thinking_content": thinking_content if thinking_content else None,
-            "reasoning_content": reasoning_content if reasoning_content else None,
-            "model_name": self.model_name,
+        class Response:
+            def __init__(self, content, **kwargs):
+                self.content = content
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+        
+        return Response(
+            content=full_content,
+            thinking_content=thinking_content if thinking_content else None,
+            reasoning_content=reasoning_content if reasoning_content else None,
+            model_name=self.model_name,
+        )
+    
+    def stream(self, messages):
+        """
+        流式同步调用模型
+        
+        Args:
+            messages: 消息列表，格式为 [{"role": "user", "content": "..."}, ...]
+            
+        Yields:
+            包含内容的对象
+        """
+        client = self._get_client()
+        
+        params = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": self.temperature,
+            "stream": True
         }
+        
+        if self.max_tokens:
+            params["max_tokens"] = self.max_tokens
+        if self.top_p:
+            params["top_p"] = self.top_p
+        if self.thinking:
+            params["extra_body"] = {"thinking": {"type": "enabled"}}
+        
+        response = client.chat.completions.create(**params)
+        
+        for chunk in response:
+            if chunk.choices and chunk.choices[0].delta:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    class Chunk:
+                        def __init__(self, content):
+                            self.content = content
+                    yield Chunk(content=delta.content)
+    
+    async def astream(self, messages):
+        """
+        流式异步调用模型
+        
+        Args:
+            messages: 消息列表，格式为 [{"role": "user", "content": "..."}, ...]
+            
+        Yields:
+            包含内容的对象
+        """
+        client = self._get_async_client()
+        
+        params = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": self.temperature,
+            "stream": True
+        }
+        
+        if self.max_tokens:
+            params["max_tokens"] = self.max_tokens
+        if self.top_p:
+            params["top_p"] = self.top_p
+        if self.thinking:
+            params["extra_body"] = {"thinking": {"type": "enabled"}}
+        
+        response = await client.chat.completions.create(**params)
+        
+        async for chunk in response:
+            if chunk.choices and chunk.choices[0].delta:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    class Chunk:
+                        def __init__(self, content):
+                            self.content = content
+                    yield Chunk(content=delta.content)
 
 
 class QwenGeneralModel(QwenChatModel):

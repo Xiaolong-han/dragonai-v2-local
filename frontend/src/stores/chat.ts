@@ -1,3 +1,4 @@
+
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import request from '@/utils/request'
@@ -74,20 +75,36 @@ export const useChatStore = defineStore('chat', () => {
         const reader = response.body?.getReader()
         const decoder = new TextDecoder()
 
+        function updateMessageContent(newContent: string, isStreaming: boolean = true) {
+          const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
+          if (msgIndex !== -1) {
+            const msg = messages.value[msgIndex]
+            messages.value[msgIndex] = {
+              ...msg,
+              content: newContent,
+              is_streaming: isStreaming
+            }
+          }
+        }
+
         function readStream() {
           reader?.read().then((result) => {
             if (result.done) {
               sending.value = false
               const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-              if (msgIndex !== -1 && messages.value[msgIndex]) {
-                messages.value[msgIndex].is_streaming = false
+              if (msgIndex !== -1) {
+                const msg = messages.value[msgIndex]
+                messages.value[msgIndex] = {
+                  ...msg,
+                  is_streaming: false
+                }
               }
               return
             }
 
             const chunk = decoder.decode(result.value)
             const lines = chunk.split('\n')
-            let fullContent = ''
+            let newContent = ''
 
             lines.forEach((line) => {
               if (line.startsWith('data: ')) {
@@ -95,14 +112,15 @@ export const useChatStore = defineStore('chat', () => {
                 if (data === '[DONE]') {
                   return
                 }
-                fullContent += data
+                newContent += data
               }
             })
 
-            if (fullContent) {
+            if (newContent) {
               const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-              if (msgIndex !== -1 && messages.value[msgIndex]) {
-                messages.value[msgIndex].content += fullContent
+              if (msgIndex !== -1) {
+                const currentContent = messages.value[msgIndex].content
+                updateMessageContent(currentContent + newContent, true)
               }
             }
 
@@ -115,6 +133,15 @@ export const useChatStore = defineStore('chat', () => {
       .catch((error) => {
         console.error('Error sending message:', error)
         sending.value = false
+        const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
+        if (msgIndex !== -1) {
+          const msg = messages.value[msgIndex]
+          messages.value[msgIndex] = {
+            ...msg,
+            content: `错误: ${error.message}`,
+            is_streaming: false
+          }
+        }
       })
   }
 

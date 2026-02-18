@@ -69,7 +69,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: calc(100vh - 200px);
+  height: 100%;
 }
 
 /* 自定义滚动条样式 */

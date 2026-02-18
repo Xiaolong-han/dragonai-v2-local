@@ -128,7 +128,7 @@ onMounted(() => {
 
 .chat-page > *:first-child {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
   min-height: 0;
 }
 

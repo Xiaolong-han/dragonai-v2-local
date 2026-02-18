@@ -12,6 +12,14 @@ export interface ChatMessage {
   is_streaming?: boolean
 }
 
+export interface SkillOptions {
+  targetLang?: string
+  sourceLang?: string
+  model?: string
+  size?: string
+  n?: number
+}
+
 export const useChatStore = defineStore('chat', () => {
   const messages = ref<ChatMessage[]>([])
   const loading = ref<boolean>(false)
@@ -27,7 +35,31 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function sendMessage(conversationId: number, content: string) {
+  function sendMessage(
+    conversationId: number, 
+    content: string, 
+    images?: string[]
+  ) {
+    _sendMessageInternal(conversationId, content, images, null, null)
+  }
+
+  function sendMessageWithSkill(
+    conversationId: number,
+    content: string,
+    skill: string,
+    options?: SkillOptions,
+    images?: string[]
+  ) {
+    _sendMessageInternal(conversationId, content, images, skill, options)
+  }
+
+  function _sendMessageInternal(
+    conversationId: number,
+    content: string,
+    images: string[] | undefined,
+    skill: string | null,
+    skillOptions: SkillOptions | null
+  ) {
     sending.value = true
 
     const userMessage: ChatMessage = {
@@ -51,14 +83,20 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(assistantMessage)
 
     const url = 'http://localhost:8000/api/v1/chat/send'
-    const body = JSON.stringify({
+    
+    const body: any = {
       conversation_id: conversationId,
       content: content,
       stream: true,
       model_type: 'general',
       is_expert: false,
-      images: null
-    })
+      images: images || null
+    }
+
+    if (skill) {
+      body.skill = skill
+      body.skill_options = skillOptions || {}
+    }
 
     fetch(url, {
       method: 'POST',
@@ -66,7 +104,7 @@ export const useChatStore = defineStore('chat', () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
-      body: body
+      body: JSON.stringify(body)
     })
       .then((response) => {
         if (!response.ok) {
@@ -177,6 +215,7 @@ export const useChatStore = defineStore('chat', () => {
     sending,
     fetchConversationHistory,
     sendMessage,
+    sendMessageWithSkill,
     regenerateMessage,
     clearMessages
   }

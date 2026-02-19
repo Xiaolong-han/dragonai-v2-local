@@ -120,7 +120,7 @@ async def process_ocr(
             detail="File not found"
         )
     
-    content = ocr_document.invoke({"image_path": request.relative_path, "prompt": request.prompt})
+    content = await ocr_document.ainvoke({"image_url": request.relative_path})
     return OCRResponse(
         relative_path=request.relative_path,
         content=content
@@ -139,9 +139,8 @@ async def process_image_understanding(
             detail="File not found"
         )
     
-    content = understand_image.invoke({"image_path": request.relative_path, "prompt": request.prompt})
+    content = await understand_image.ainvoke({"image_url": request.relative_path})
     return ImageUnderstandResponse(
         relative_path=request.relative_path,
         content=content
     )
-

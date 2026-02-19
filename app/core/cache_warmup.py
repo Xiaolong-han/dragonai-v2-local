@@ -2,7 +2,7 @@ import logging
 from typing import List
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
+from app.core.database import get_db_session
 from app.core.redis import redis_client, cache_aside
 from app.models.conversation import Conversation
 from app.models.user import User
@@ -24,15 +24,12 @@ class CacheWarmup:
         """
         logger.info(f"[CACHE WARMUP] 开始预热会话列表缓存，限制 {limit} 条")
         
-        db = SessionLocal()
-        try:
-            # 获取需要预热的用户列表（活跃用户）
+        async with get_db_session() as db:
             active_users = db.query(User).limit(50).all()
             
             for user in active_users:
                 user_id = user.id
                 
-                # 预热该用户的会话列表缓存
                 cache_key = f"conversations:user:{user_id}:skip:0:limit:100"
                 
                 async def fetch_conversations():
@@ -57,18 +54,13 @@ class CacheWarmup:
                     logger.error(f"[CACHE WARMUP] 预热用户 {user_id} 会话列表失败: {e}")
             
             logger.info(f"[CACHE WARMUP] 会话列表缓存预热完成，预热了 {len(active_users)} 个用户")
-            
-        finally:
-            db.close()
     
     @staticmethod
     async def warmup_pinned_conversations():
         """预热置顶会话详情缓存"""
         logger.info("[CACHE WARMUP] 开始预热置顶会话详情缓存")
         
-        db = SessionLocal()
-        try:
-            # 获取所有置顶会话
+        async with get_db_session() as db:
             pinned_conversations = db.query(Conversation).filter(
                 Conversation.is_pinned == True
             ).all()
@@ -99,9 +91,6 @@ class CacheWarmup:
                     logger.error(f"[CACHE WARMUP] 预热置顶会话 {conversation_id} 失败: {e}")
             
             logger.info(f"[CACHE WARMUP] 置顶会话详情缓存预热完成，预热了 {len(pinned_conversations)} 个会话")
-            
-        finally:
-            db.close()
     
     @staticmethod
     async def warmup_recent_conversations(hours: int = 24):
@@ -115,11 +104,9 @@ class CacheWarmup:
         
         logger.info(f"[CACHE WARMUP] 开始预热最近 {hours} 小时活跃的会话")
         
-        db = SessionLocal()
-        try:
+        async with get_db_session() as db:
             cutoff_time = datetime.utcnow() - timedelta(hours=hours)
             
-            # 获取最近活跃的会话
             recent_conversations = db.query(Conversation).filter(
                 Conversation.updated_at >= cutoff_time
             ).limit(200).all()
@@ -128,7 +115,6 @@ class CacheWarmup:
                 user_id = conv.user_id
                 conversation_id = conv.id
                 
-                # 预热会话详情
                 cache_key = f"conversation:{conversation_id}:{user_id}"
                 
                 async def fetch_conversation():
@@ -150,9 +136,6 @@ class CacheWarmup:
                     logger.error(f"[CACHE WARMUP] 预热会话 {conversation_id} 失败: {e}")
             
             logger.info(f"[CACHE WARMUP] 最近活跃会话缓存预热完成，预热了 {len(recent_conversations)} 个会话")
-            
-        finally:
-            db.close()
     
     @staticmethod
     async def warmup_all():
@@ -166,5 +149,4 @@ class CacheWarmup:
         logger.info("[CACHE WARMUP] ========== 缓存预热完成 ==========")
 
 
-# 全局缓存预热实例
 cache_warmup = CacheWarmup()

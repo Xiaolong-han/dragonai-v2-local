@@ -36,7 +36,7 @@ class Settings(BaseSettings):
 
     # 模型配置 - 开发者可自定义模型映射
     # 通用模型配置
-    model_general_fast: str = "qwen-turbo" 
+    model_general_fast: str = "qwen-flash" 
     model_general_expert: str = "qwen3-max"
     
     # 视觉模型配置

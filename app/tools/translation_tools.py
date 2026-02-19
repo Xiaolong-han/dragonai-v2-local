@@ -5,7 +5,7 @@ from app.llm.model_factory import ModelFactory
 
 
 @tool
-def translate_text(text: str, target_lang: str, source_lang: str = None) -> str:
+async def translate_text(text: str, target_lang: str, source_lang: str = None) -> str:
     """
     将文本翻译成目标语言。
 
@@ -22,7 +22,7 @@ def translate_text(text: str, target_lang: str, source_lang: str = None) -> str:
         翻译后的文本
     """
     model = ModelFactory.get_translation_model(is_plus=False)
-    result = model.translate(
+    result = await model.atranslate(
         text=text,
         source_lang=source_lang,
         target_lang=target_lang

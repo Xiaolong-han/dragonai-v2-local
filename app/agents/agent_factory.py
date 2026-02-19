@@ -1,7 +1,5 @@
 """Agent工厂 - 使用LangChain 1.0+推荐的create_agent"""
 
-import asyncio
-import os
 from typing import Optional
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
@@ -46,7 +44,7 @@ SYSTEM_PROMPT = """你是一个强大的AI助手，能够帮助用户处理各�
 ```python
 print("Hello, World!")
 ```
-`````
+````
 
 请根据用户的需求，合理选择和使用这些工具。如果用户请求不明确，请主动询问以澄清需求。
 """
@@ -86,24 +84,18 @@ class AgentFactory:
         Returns:
             Agent实例，可直接调用invoke或stream
         """
-        # 1. 获取模型
         model = ModelFactory.get_general_model(
             is_expert=is_expert,
             thinking=enable_thinking
         )
 
-        # 2. 获取checkpointer用于对话状态持久化
         checkpointer = cls.get_checkpointer()
 
-        # 3. 创建Agent (LangChain 1.0+ 推荐方式)
-        # 直接传递工具列表，无需ToolRegistry
-        # 传入checkpointer实现对话状态持久化
-        # 参考: https://python.langchain.com/docs/how_to/agent/
         agent = create_agent(
             model=model,
-            tools=ALL_TOOLS,  # 直接传递工具列表
+            tools=ALL_TOOLS,
             system_prompt=SYSTEM_PROMPT,
-            checkpointer=checkpointer,  # 传入InMemorySaver
+            checkpointer=checkpointer,
         )
 
         return agent

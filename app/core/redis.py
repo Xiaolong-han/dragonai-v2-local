@@ -4,60 +4,14 @@ import logging
 import random
 from typing import Optional, Any, Callable
 from functools import wraps
-from datetime import datetime
 import redis.asyncio as redis
 
 from app.config import settings
+from app.utils.serializers import is_sqlalchemy_model, model_to_dict
 
 logger = logging.getLogger(__name__)
 
-# 空值缓存标记
 NULL_VALUE_MARKER = "__NULL__"
-
-
-def is_sqlalchemy_model(obj: Any) -> bool:
-    return hasattr(obj, '__table__')
-
-
-def model_to_dict(obj: Any) -> Any:
-    if isinstance(obj, list):
-        return [model_to_dict(item) for item in obj]
-    
-    if not is_sqlalchemy_model(obj):
-        return obj
-    
-    data = {}
-    for column in obj.__table__.columns:
-        column_name = column.name
-        try:
-            value = None
-            
-            if column_name == 'metadata':
-                if hasattr(obj, 'metadata_'):
-                    value = getattr(obj, 'metadata_')
-                else:
-                    value = None
-            else:
-                try:
-                    value = getattr(obj, column_name)
-                except AttributeError:
-                    value = None
-            
-            if isinstance(value, datetime):
-                data[column_name] = value.isoformat()
-            elif value is not None:
-                if isinstance(value, (str, int, float, bool, list, dict)):
-                    data[column_name] = value
-                else:
-                    try:
-                        data[column_name] = json.dumps(value)
-                    except (TypeError, ValueError):
-                        data[column_name] = None
-            else:
-                data[column_name] = None
-        except Exception:
-            data[column_name] = None
-    return data
 
 
 class RedisClient:
@@ -75,7 +29,6 @@ class RedisClient:
             self._client = None
 
     async def close(self):
-        """关闭 Redis 连接（兼容方法）"""
         await self.disconnect()
 
     @property
@@ -108,15 +61,30 @@ class RedisClient:
         return await self.client.exists(key) > 0
 
     async def acquire_lock(self, lock_key: str, expire_seconds: int = 10) -> bool:
-        """获取分布式锁"""
         return await self.client.set(lock_key, "1", nx=True, ex=expire_seconds)
 
     async def release_lock(self, lock_key: str):
-        """释放分布式锁"""
         await self.client.delete(lock_key)
 
 
 redis_client = RedisClient()
+
+
+async def invalidate_cache_by_pattern(pattern: str):
+    """通用的模式匹配缓存失效"""
+    cursor = 0
+    all_keys = []
+    while True:
+        cursor, keys = await redis_client.client.scan(cursor, match=pattern, count=100)
+        all_keys.extend(keys)
+        if cursor == 0:
+            break
+    
+    if all_keys:
+        await redis_client.client.delete(*all_keys)
+        logger.info(f"[CACHE DELETE] 已删除缓存: pattern={pattern}, keys={len(all_keys)}")
+    else:
+        logger.info(f"[CACHE DELETE] 未找到缓存: pattern={pattern}")
 
 
 async def cache_aside(
@@ -146,23 +114,19 @@ async def cache_aside(
         enable_random_ttl: 是否启用随机TTL（防雪崩）
         random_ttl_range: 随机TTL范围（秒）
     """
-    # 1. 先查缓存
     cached = await redis_client.get(key)
     if cached is not None:
-        # 检查是否是空值标记（防穿透）
         if cached == NULL_VALUE_MARKER:
             logger.info(f"[CACHE HIT NULL] 空值缓存命中: {key}")
             return None
         logger.info(f"[CACHE HIT] 数据从缓存获取: {key}")
         return cached
 
-    # 2. 缓存未命中，尝试获取互斥锁（防击穿）
     if enable_lock:
         lock_key = f"lock:{key}"
         lock_acquired = await redis_client.acquire_lock(lock_key, lock_expire_seconds)
         
         if not lock_acquired:
-            # 其他线程正在加载，等待后重试
             logger.info(f"[CACHE LOCK] 等待其他线程加载: {key}")
             await asyncio.sleep(0.1)
             return await cache_aside(
@@ -174,7 +138,6 @@ async def cache_aside(
             )
         
         try:
-            # 双重检查
             cached = await redis_client.get(key)
             if cached is not None:
                 if cached == NULL_VALUE_MARKER:
@@ -193,27 +156,22 @@ async def cache_aside(
         return None
 
     try:
-        # 3. 从数据库获取数据
         data = await data_func(*args, **kwargs)
         
-        # 4. 计算实际 TTL（防雪崩）
         actual_ttl = ttl
         if enable_random_ttl:
             actual_ttl = ttl + random.randint(0, random_ttl_range)
         
-        # 5. 回填缓存
         if data is not None:
             await redis_client.set(key, data, ttl=actual_ttl)
             logger.info(f"[CACHE SET] 数据已写入缓存: {key}, TTL={actual_ttl}s")
         else:
-            # 空值缓存（防穿透）
             if enable_null_cache:
                 await redis_client.set(key, NULL_VALUE_MARKER, ttl=null_cache_ttl)
                 logger.info(f"[CACHE SET NULL] 空值已写入缓存: {key}, TTL={null_cache_ttl}s")
         
         return data
     finally:
-        # 6. 释放锁
         if enable_lock:
             await redis_client.release_lock(lock_key)
 

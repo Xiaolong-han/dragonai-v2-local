@@ -5,7 +5,7 @@ from app.services.knowledge_service import KnowledgeService
 
 
 @tool
-def search_knowledge_base(query: str, k: int = 4) -> str:
+async def search_knowledge_base(query: str, k: int = 4) -> str:
     """
     从本地知识库中搜索相关文档。
 
@@ -19,7 +19,7 @@ def search_knowledge_base(query: str, k: int = 4) -> str:
         相关文档的格式化内容
     """
     service = KnowledgeService()
-    documents = service.search(query, k=k)
+    documents = await service.search(query, k=k)
 
     if not documents:
         return "未找到相关文档。"

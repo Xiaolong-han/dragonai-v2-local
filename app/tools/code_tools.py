@@ -5,7 +5,7 @@ from app.llm.model_factory import ModelFactory
 
 
 @tool
-def code_assist(prompt: str, language: str = "python") -> str:
+async def code_assist(prompt: str, language: str = "python") -> str:
     """
     协助编程任务，包括代码生成、调试、解释和优化。
 
@@ -32,6 +32,5 @@ def code_assist(prompt: str, language: str = "python") -> str:
 3. 格式清晰，使用 markdown 代码块"""},
         {"role": "user", "content": prompt}
     ]
-    result = model.invoke(messages)
-    #print(result.content)
+    result = await model.ainvoke(messages)
     return result.content

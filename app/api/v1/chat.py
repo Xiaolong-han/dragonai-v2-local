@@ -1,4 +1,6 @@
-
+import asyncio
+import json
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
@@ -17,6 +19,7 @@ from app.services.chat_service import chat_service
 from app.services.conversation_service import conversation_service
 
 router = APIRouter(prefix="/chat", tags=["聊天"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/conversations/{conversation_id}/history", response_model=ChatHistoryResponse)
@@ -81,11 +84,6 @@ async def send_chat_message(
     history = [{"role": m.role, "content": m.content} for m in messages_history]
     
     if chat_request.stream:
-        import asyncio
-        import logging
-        import json
-        logger = logging.getLogger(__name__)
-        
         async def generate():
             full_response = ""
             chunk_count = 0
@@ -101,9 +99,7 @@ async def send_chat_message(
                 full_response += chunk
                 chunk_count += 1
                 logger.info(f"[SSE] Sending chunk {chunk_count}: {len(chunk)} chars")
-                # 使用 JSON 编码避免换行符破坏 SSE 格式
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-                # 让出控制权，确保数据被发送
                 await asyncio.sleep(0.01)
             
             logger.info(f"[SSE] Stream complete, total chunks: {chunk_count}, total chars: {len(full_response)}")
@@ -121,9 +117,7 @@ async def send_chat_message(
             )
             yield "data: [DONE]\n\n"
         
-        from starlette.responses import StreamingResponse as StarletteStreamingResponse
-        
-        return StarletteStreamingResponse(
+        return StreamingResponse(
             generate(),
             media_type="text/event-stream",
             headers={
@@ -156,4 +150,3 @@ async def send_chat_message(
         )
         
         return {"response": response}
-

@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -24,3 +25,12 @@ def get_db():
     finally:
         db.close()
 
+
+@asynccontextmanager
+async def get_db_session():
+    """异步数据库会话上下文管理器，用于非请求上下文"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

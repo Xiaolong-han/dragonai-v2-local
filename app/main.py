@@ -1,22 +1,20 @@
-
 import asyncio
 import os
 
-# Windows 上使用 SelectorEventLoop 以兼容 psycopg
-# 必须在任何其他导入之前设置
 if os.name == 'nt':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-import selectors
 import logging
 from logging.handlers import RotatingFileHandler
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.redis import redis_client
 from app.core.cache_warmup import cache_warmup
+from app.core.exceptions import DragonAIException
 from app.api.v1 import auth, conversations, files, knowledge, skills, models, chat
 
 
@@ -30,7 +28,6 @@ def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(log_level)
 
-    # 控制台处理器
     console_handler = logging.StreamHandler()
     console_handler.setLevel(log_level)
     console_format = logging.Formatter(
@@ -39,10 +36,9 @@ def setup_logging():
     console_handler.setFormatter(console_format)
     logger.addHandler(console_handler)
 
-    # 文件处理器
     file_handler = RotatingFileHandler(
         os.path.join(log_dir, 'app.log'),
-        maxBytes=10*1024*1024,  # 10MB
+        maxBytes=10*1024*1024,
         backupCount=5,
         encoding='utf-8'
     )
@@ -56,22 +52,17 @@ def setup_logging():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理"""
-    # 启动时执行
     setup_logging()
     logger = logging.getLogger()
     logger.info("Starting DragonAI...")
 
-    # 连接 Redis
     await redis_client.connect()
     logger.info("Redis connected")
 
-    # 预热缓存
     await cache_warmup.warmup_all()
 
     yield
 
-    # 关闭时执行
     await redis_client.close()
     logger.info("Shutting down DragonAI")
 
@@ -83,16 +74,30 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS配置
+
+@app.exception_handler(DragonAIException)
+async def dragonai_exception_handler(request: Request, exc: DragonAIException):
+    """统一异常处理"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "details": exc.details
+            }
+        }
+    )
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 生产环境应该限制具体域名
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 注册路由
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(files.router, prefix="/api/v1")

@@ -28,8 +28,6 @@ from app.schemas.skills import SkillResponse, SkillDetailResponse
 router = APIRouter(prefix="/skills", tags=["技能"])
 
 
-# ==================== 请求模型 ====================
-
 class ImageGenerateRequest(BaseModel):
     """图像生成请求"""
     prompt: str = Field(..., description="图像描述")
@@ -65,14 +63,9 @@ class TranslateRequest(BaseModel):
     model_mode: Literal["fast", "expert"] = Field("fast", description="模型模式")
 
 
-# ==================== 技能元数据管理 ====================
-
 @router.get("", response_model=List[SkillResponse])
 async def get_all_skills():
-    """获取所有可用技能列表
-
-    返回Agent可以调用的所有工具/技能列表
-    """
+    """获取所有可用技能列表"""
     return [
         {
             "name": tool.name,
@@ -84,11 +77,7 @@ async def get_all_skills():
 
 @router.get("/{skill_name}", response_model=SkillDetailResponse)
 async def get_skill_detail(skill_name: str):
-    """获取技能详情
-
-    Args:
-        skill_name: 技能名称（工具名称）
-    """
+    """获取技能详情"""
     for tool in ALL_TOOLS:
         if tool.name == skill_name:
             return {
@@ -102,24 +91,18 @@ async def get_skill_detail(skill_name: str):
     )
 
 
-# ==================== 专项技能直接触发 ====================
-
 @router.post("/direct/image/generate")
 async def direct_image_generate(
     request: ImageGenerateRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    """直接触发图像生成 - 不经过Agent
-
-    使用专用图像生成模型通过阿里云百炼多模态生成API
-    适用于用户明确需要图像生成的场景
-    """
+    """直接触发图像生成 - 不经过Agent"""
     try:
         model = ModelFactory.get_image_model(
             is_turbo=request.model_mode == "fast"
         )
 
-        urls = model.generate(
+        urls = await model.agenerate(
             prompt=request.prompt,
             size=request.size,
             n=request.n,
@@ -149,16 +132,13 @@ async def direct_image_edit(
     request: ImageEditRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    """直接触发图像编辑 - 不经过Agent
-
-    使用专用图像编辑模型通过阿里云百炼多模态生成API
-    """
+    """直接触发图像编辑 - 不经过Agent"""
     try:
         model = ModelFactory.get_image_model(
             is_turbo=request.model_mode == "fast"
         )
 
-        url = model.edit_image(
+        url = await model.aedit_image(
             image_url=request.image_url,
             prompt=request.prompt,
             size=request.size,
@@ -186,10 +166,7 @@ async def direct_code_assist(
     request: CodeAssistRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    """直接触发编程协助 - 不经过Agent
-
-    使用专用编程模型，支持流式输出
-    """
+    """直接触发编程协助 - 不经过Agent"""
     try:
         if request.stream:
             async def event_generator():
@@ -221,7 +198,7 @@ async def direct_code_assist(
                 {"role": "user", "content": request.prompt}
             ]
 
-            result = model.invoke(messages)
+            result = await model.ainvoke(messages)
 
             return {
                 "success": True,
@@ -238,10 +215,7 @@ async def direct_translate(
     request: TranslateRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    """直接触发翻译 - 不经过Agent
-
-    使用专用翻译模型
-    """
+    """直接触发翻译 - 不经过Agent"""
     try:
         model = ModelFactory.get_translation_model(
             is_plus=request.model_mode == "expert"

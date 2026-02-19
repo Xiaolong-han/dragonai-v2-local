@@ -5,7 +5,7 @@ from app.llm.model_factory import ModelFactory
 
 
 @tool
-def understand_image(image_url: str) -> str:
+async def understand_image(image_url: str) -> str:
     """
     理解图片内容并描述图片中有什么。
 
@@ -18,12 +18,12 @@ def understand_image(image_url: str) -> str:
         图片内容的详细描述
     """
     model = ModelFactory.get_vision_model(is_ocr=False)
-    result = model.understand_image(image_url)
+    result = await model.aunderstand_image(image_url)
     return result
 
 
 @tool
-def ocr_document(image_url: str) -> str:
+async def ocr_document(image_url: str) -> str:
     """
     识别图片中的文字内容（OCR）。
 
@@ -36,5 +36,5 @@ def ocr_document(image_url: str) -> str:
         图片中提取的文字内容
     """
     model = ModelFactory.get_vision_model(is_ocr=True)
-    result = model.ocr_image(image_url)
+    result = await model.aocr_image(image_url)
     return result

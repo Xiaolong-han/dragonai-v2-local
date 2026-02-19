@@ -47,7 +47,7 @@ class KnowledgeService:
     def retriever(self) -> VectorStoreRetriever:
         return VectorStoreRetriever(self.vector_store)
 
-    def upload_document(
+    async def upload_document(
         self,
         file_path: str,
         metadata: Optional[dict] = None,
@@ -69,7 +69,7 @@ class KnowledgeService:
         
         return len(split_docs)
 
-    def upload_directory(
+    async def upload_directory(
         self,
         dir_path: str,
         recursive: bool = False,
@@ -92,7 +92,7 @@ class KnowledgeService:
         
         return len(split_docs)
 
-    def add_documents(self, documents: List[Document]) -> int:
+    async def add_documents(self, documents: List[Document]) -> int:
         for doc in documents:
             if "uploaded_at" not in doc.metadata:
                 doc.metadata["uploaded_at"] = datetime.now().isoformat()
@@ -104,35 +104,39 @@ class KnowledgeService:
         
         return len(split_docs)
 
-    def search(self, query: str, k: int = 4) -> List[Document]:
-        return self.retriever.retrieve(query, k=k)
+    async def search(self, query: str, k: int = 4) -> List[Document]:
+        return await self.retriever.aretrieve(query, k=k)
 
-    def search_with_score(
+    async def search_with_score(
         self,
         query: str,
         k: int = 4,
     ) -> List[tuple[Document, float]]:
         return self.retriever.similarity_search_with_score(query, k=k)
 
-    def delete_collection(self):
+    async def delete_collection(self):
         vector_store_manager.delete_collection(self.collection_name)
         self._vector_store = None
 
-    def get_collection_stats(self) -> dict:
+    async def get_collection_stats(self) -> dict:
         collection = self.vector_store._collection
         return {
             "collection_name": self.collection_name,
             "document_count": collection.count(),
         }
 
-    def save_uploaded_file(self, file, filename: str) -> str:
+    async def save_uploaded_file(self, file, filename: str) -> str:
         storage_dir = Path(settings.storage_dir) / "knowledge_base"
         storage_dir.mkdir(parents=True, exist_ok=True)
         
         file_path = storage_dir / filename
         
+        content = await file.read()
         with open(file_path, "wb") as f:
-            f.write(file.file.read())
+            f.write(content)
         
         return str(file_path)
 
+
+def get_knowledge_service() -> KnowledgeService:
+    return KnowledgeService()

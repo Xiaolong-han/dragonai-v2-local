@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from pydantic import BaseModel
 
-from app.services import KnowledgeService
+from app.services.knowledge_service import KnowledgeService, get_knowledge_service
 
 router = APIRouter()
 
@@ -33,18 +33,14 @@ class StatsResponse(BaseModel):
     document_count: int
 
 
-def get_knowledge_service() -> KnowledgeService:
-    return KnowledgeService()
-
-
 @router.post("/upload", response_model=UploadResponse)
 async def upload_document(
     file: UploadFile = File(...),
     service: KnowledgeService = Depends(get_knowledge_service),
 ):
     try:
-        file_path = service.save_uploaded_file(file, file.filename)
-        chunk_count = service.upload_document(file_path)
+        file_path = await service.save_uploaded_file(file, file.filename)
+        chunk_count = await service.upload_document(file_path)
         
         return UploadResponse(
             success=True,
@@ -61,7 +57,7 @@ async def search_knowledge(
     service: KnowledgeService = Depends(get_knowledge_service),
 ):
     try:
-        documents = service.search(request.query, k=request.k)
+        documents = await service.search(request.query, k=request.k)
         results = [
             DocumentResponse(content=doc.page_content, metadata=doc.metadata)
             for doc in documents
@@ -76,7 +72,7 @@ async def get_stats(
     service: KnowledgeService = Depends(get_knowledge_service),
 ):
     try:
-        stats = service.get_collection_stats()
+        stats = await service.get_collection_stats()
         return StatsResponse(**stats)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
@@ -87,8 +83,7 @@ async def delete_collection(
     service: KnowledgeService = Depends(get_knowledge_service),
 ):
     try:
-        service.delete_collection()
+        await service.delete_collection()
         return {"success": True, "message": "Knowledge base deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
-

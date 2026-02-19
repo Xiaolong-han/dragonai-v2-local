@@ -5,7 +5,7 @@ from app.llm.model_factory import ModelFactory
 
 
 @tool
-def generate_image(prompt: str, size: str = "1024*1024", n: int = 1) -> str:
+async def generate_image(prompt: str, size: str = "1024*1024", n: int = 1) -> str:
     """
     根据文本描述生成图像。
 
@@ -21,12 +21,12 @@ def generate_image(prompt: str, size: str = "1024*1024", n: int = 1) -> str:
         生成图像的URL列表
     """
     model = ModelFactory.get_image_model(is_turbo=True)
-    urls = model.generate(prompt=prompt, size=size, n=n)
+    urls = await model.agenerate(prompt=prompt, size=size, n=n)
     return f"图像已生成：{', '.join(urls)}"
 
 
 @tool
-def edit_image(image_url: str, prompt: str) -> str:
+async def edit_image(image_url: str, prompt: str) -> str:
     """
     根据编辑指令修改现有图像。
 
@@ -41,5 +41,5 @@ def edit_image(image_url: str, prompt: str) -> str:
         编辑后图像的URL
     """
     model = ModelFactory.get_image_model(is_turbo=True)
-    url = model.edit_image(image_url=image_url, prompt=prompt)
+    url = await model.aedit_image(image_url=image_url, prompt=prompt)
     return f"图像编辑完成：{url}"

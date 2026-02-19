@@ -3,15 +3,13 @@
 所有模型名从配置文件读取，避免硬编码
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from app.config import settings
 
 
 class ModelFactory:
     """模型工厂 - 支持配置化模型创建"""
-
-    _model_cache: Dict[str, Any] = {}
 
     @classmethod
     def get_general_model(cls, is_expert: bool = False, thinking: bool = False, **kwargs):
@@ -30,14 +28,12 @@ class ModelFactory:
             else settings.model_general_fast
         )
 
-        # 使用 ChatOpenAI 创建模型，支持工具调用 (bind_tools)
-        # 启用流式输出
         return ChatOpenAI(
             model=model_name,
             api_key=settings.qwen_api_key,
             base_url=settings.qwen_base_url,
             temperature=0.7,
-            streaming=True,  # 启用流式输出
+            streaming=True,
             **kwargs
         )
 
@@ -117,8 +113,3 @@ class ModelFactory:
             api_key=settings.qwen_api_key,
             **kwargs
         )
-
-    @classmethod
-    def clear_cache(cls):
-        """清除模型缓存"""
-        cls._model_cache.clear()

@@ -6,7 +6,7 @@ from app.config import settings
 
 
 @tool
-def web_search(query: str) -> str:
+async def web_search(query: str) -> str:
     """
     使用联网搜索获取最新信息。
 
@@ -26,5 +26,5 @@ def web_search(query: str) -> str:
         max_results=5,
         search_depth="advanced"
     )
-    results = search_tool.invoke({"query": query})
+    results = await search_tool.ainvoke({"query": query})
     return str(results)

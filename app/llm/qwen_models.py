@@ -224,31 +224,66 @@ class QwenImageModel:
         return data
     
     def _parse_image_urls(self, result):
-        """解析响应中的图像URL"""
+        """解析响应中的图像URL
+        
+        阿里官方返回格式：
+        {
+            "output": {
+                "choices": [{
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": [{"image": "url"}],
+                        "role": "assistant"
+                    }
+                }],
+                "task_metric": {"FAILED": 0, "SUCCEEDED": 1, "TOTAL": 1}
+            }
+        }
+        """
         urls = []
-        if "output" in result:
-            output = result["output"]
-            if "results" in output:
-                for item in output["results"]:
-                    if "url" in item:
-                        urls.append(item["url"])
-                    elif "image_url" in item:
-                        urls.append(item["image_url"])
-            elif "image_url" in output:
-                urls.append(output["image_url"])
-            elif "url" in output:
-                urls.append(output["url"])
-            elif "choices" in output:
-                for choice in output["choices"]:
-                    if "message" in choice and "content" in choice["message"]:
-                        content = choice["message"]["content"]
-                        if isinstance(content, list):
-                            for item in content:
-                                if isinstance(item, dict):
-                                    if "image_url" in item:
-                                        urls.append(item["image_url"])
-                                    elif "url" in item:
-                                        urls.append(item["url"])
+        
+        # 检查错误响应
+        if "code" in result and "message" in result:
+            error_msg = f"API错误 [{result.get('code')}]: {result.get('message')}"
+            raise ValueError(error_msg)
+        
+        if "output" not in result:
+            return urls
+            
+        output = result["output"]
+        
+        # 解析 choices 格式（官方标准格式）
+        if "choices" in output:
+            for choice in output["choices"]:
+                if "message" in choice and "content" in choice["message"]:
+                    content = choice["message"]["content"]
+                    if isinstance(content, list):
+                        for item in content:
+                            if isinstance(item, dict):
+                                # 官方格式使用 "image" 字段
+                                if "image" in item:
+                                    urls.append(item["image"].strip())
+                                elif "image_url" in item:
+                                    urls.append(item["image_url"].strip())
+                                elif "url" in item:
+                                    urls.append(item["url"].strip())
+        
+        # 兼容其他可能的格式
+        elif "results" in output:
+            for item in output["results"]:
+                if "url" in item:
+                    urls.append(item["url"].strip())
+                elif "image_url" in item:
+                    urls.append(item["image_url"].strip())
+                elif "image" in item:
+                    urls.append(item["image"].strip())
+        elif "image_url" in output:
+            urls.append(output["image_url"].strip())
+        elif "url" in output:
+            urls.append(output["url"].strip())
+        elif "image" in output:
+            urls.append(output["image"].strip())
+        
         return urls
     
     def generate(
@@ -332,16 +367,8 @@ class QwenImageModel:
             response.raise_for_status()
             result = response.json()
             
-            if "output" in result:
-                output = result["output"]
-                if "results" in output and len(output["results"]) > 0:
-                    return output["results"][0].get("url") or output["results"][0].get("image_url", "")
-                elif "image_url" in output:
-                    return output["image_url"]
-                elif "url" in output:
-                    return output["url"]
-            
-            return ""
+            urls = self._parse_image_urls(result)
+            return urls[0] if urls else ""
     
     async def aedit_image(
         self,
@@ -380,16 +407,8 @@ class QwenImageModel:
             response.raise_for_status()
             result = response.json()
             
-            if "output" in result:
-                output = result["output"]
-                if "results" in output and len(output["results"]) > 0:
-                    return output["results"][0].get("url") or output["results"][0].get("image_url", "")
-                elif "image_url" in output:
-                    return output["image_url"]
-                elif "url" in output:
-                    return output["url"]
-            
-            return ""
+            urls = self._parse_image_urls(result)
+            return urls[0] if urls else ""
 
 
 class QwenCoderModel(BaseSkillModel):

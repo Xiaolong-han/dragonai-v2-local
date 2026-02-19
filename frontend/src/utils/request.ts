@@ -35,7 +35,8 @@ request.interceptors.response.use(
         case 401:
           ElMessage.error('未授权，请重新登录')
           localStorage.removeItem('token')
-          router.push('/login')
+          // 使用 window.location 强制跳转，确保页面刷新
+          window.location.href = '/login'
           break
         case 403:
           ElMessage.error('拒绝访问')

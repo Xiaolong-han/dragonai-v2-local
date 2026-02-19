@@ -74,6 +74,10 @@ class RedisClient:
             await self._client.close()
             self._client = None
 
+    async def close(self):
+        """关闭 Redis 连接（兼容方法）"""
+        await self.disconnect()
+
     @property
     def client(self) -> redis.Redis:
         if self._client is None:

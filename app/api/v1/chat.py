@@ -81,8 +81,14 @@ async def send_chat_message(
     history = [{"role": m.role, "content": m.content} for m in messages_history]
     
     if chat_request.stream:
+        import asyncio
+        import logging
+        import json
+        logger = logging.getLogger(__name__)
+        
         async def generate():
             full_response = ""
+            chunk_count = 0
             async for chunk in chat_service.generate_response_stream(
                 conversation_id=chat_request.conversation_id,
                 user_id=current_user.id,
@@ -93,7 +99,15 @@ async def send_chat_message(
                 messages_history=history[:-1]
             ):
                 full_response += chunk
-                yield f"data: {chunk}\n\n"
+                chunk_count += 1
+                logger.info(f"[SSE] Sending chunk {chunk_count}: {len(chunk)} chars")
+                # 使用 JSON 编码避免换行符破坏 SSE 格式
+                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                # 让出控制权，确保数据被发送
+                await asyncio.sleep(0.01)
+            
+            logger.info(f"[SSE] Stream complete, total chunks: {chunk_count}, total chars: {len(full_response)}")
+            logger.info(f"[SSE] Full response content:\n{full_response}")
             
             await chat_service.create_message(
                 db,
@@ -107,13 +121,16 @@ async def send_chat_message(
             )
             yield "data: [DONE]\n\n"
         
-        return StreamingResponse(
+        from starlette.responses import StreamingResponse as StarletteStreamingResponse
+        
+        return StarletteStreamingResponse(
             generate(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
-                "X-Accel-Buffering": "no"
+                "X-Accel-Buffering": "no",
+                "Content-Type": "text/event-stream; charset=utf-8"
             }
         )
     else:

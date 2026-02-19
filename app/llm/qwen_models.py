@@ -1,13 +1,15 @@
 
 import base64
+import httpx
+from typing import List, Optional
 
 from openai import AsyncOpenAI, OpenAI
 
 from app.config import settings
 
 
-class QwenChatModel:
-    """通义千问聊天模型基类"""
+class BaseSkillModel:
+    """技能模型基类 - 用于直接技能触发的模型"""
     
     def __init__(
         self,
@@ -54,231 +56,86 @@ class QwenChatModel:
         return self._async_client
     
     def invoke(self, messages):
-        """
-        同步调用模型
-        
-        Args:
-            messages: 消息列表，格式为 [{"role": "user", "content": "..."}, ...]
-            
-        Returns:
-            包含响应内容的字典
-        """
+        """同步调用模型"""
         client = self._get_client()
         
-        params = {
+        kwargs = {
             "model": self.model_name,
             "messages": messages,
             "temperature": self.temperature,
+            "stream": False,
         }
         
         if self.max_tokens:
-            params["max_tokens"] = self.max_tokens
+            kwargs["max_tokens"] = self.max_tokens
         if self.top_p:
-            params["top_p"] = self.top_p
+            kwargs["top_p"] = self.top_p
         if self.thinking:
-            params["extra_body"] = {"thinking": {"type": "enabled"}}
-        if self.stream:
-            params["stream"] = True
+            kwargs["extra_body"] = {"enable_thinking": True}
         
-        response = client.chat.completions.create(**params)
-        
-        if self.stream:
-            return self._handle_stream_response(response)
-        
-        return self._handle_response(response)
+        response = client.chat.completions.create(**kwargs)
+        return response.choices[0].message
     
     async def ainvoke(self, messages):
-        """
-        异步调用模型
-        
-        Args:
-            messages: 消息列表，格式为 [{"role": "user", "content": "..."}, ...]
-            
-        Returns:
-            包含响应内容的字典
-        """
+        """异步调用模型"""
         client = self._get_async_client()
         
-        params = {
+        kwargs = {
             "model": self.model_name,
             "messages": messages,
             "temperature": self.temperature,
+            "stream": False,
         }
         
         if self.max_tokens:
-            params["max_tokens"] = self.max_tokens
+            kwargs["max_tokens"] = self.max_tokens
         if self.top_p:
-            params["top_p"] = self.top_p
+            kwargs["top_p"] = self.top_p
         if self.thinking:
-            params["extra_body"] = {"thinking": {"type": "enabled"}}
-        if self.stream:
-            params["stream"] = True
+            kwargs["extra_body"] = {"enable_thinking": True}
         
-        response = await client.chat.completions.create(**params)
-        
-        if self.stream:
-            return await self._ahandle_stream_response(response)
-        
-        return self._handle_response(response)
-    
-    def _handle_response(self, response):
-        """处理非流式响应"""
-        choice = response.choices[0]
-        message = choice.message
-        
-        class Response:
-            def __init__(self, content, **kwargs):
-                self.content = content
-                for k, v in kwargs.items():
-                    setattr(self, k, v)
-        
-        return Response(
-            content=message.content or "",
-            thinking_content=getattr(message, "thinking_content", None),
-            reasoning_content=getattr(message, "reasoning_content", None),
-            usage=response.usage.model_dump() if response.usage else None,
-            model_name=self.model_name,
-        )
-    
-    def _handle_stream_response(self, response):
-        """处理流式响应"""
-        content_parts = []
-        thinking_content = ""
-        reasoning_content = ""
-        
-        for chunk in response:
-            if chunk.choices and chunk.choices[0].delta:
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    content_parts.append(delta.content)
-                if hasattr(delta, "thinking_content") and delta.thinking_content:
-                    thinking_content += delta.thinking_content
-                if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-                    reasoning_content += delta.reasoning_content
-        
-        full_content = "".join(content_parts)
-        
-        class Response:
-            def __init__(self, content, **kwargs):
-                self.content = content
-                for k, v in kwargs.items():
-                    setattr(self, k, v)
-        
-        return Response(
-            content=full_content,
-            thinking_content=thinking_content if thinking_content else None,
-            reasoning_content=reasoning_content if reasoning_content else None,
-            model_name=self.model_name,
-        )
-    
-    async def _ahandle_stream_response(self, response):
-        """处理异步流式响应"""
-        content_parts = []
-        thinking_content = ""
-        reasoning_content = ""
-        
-        async for chunk in response:
-            if chunk.choices and chunk.choices[0].delta:
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    content_parts.append(delta.content)
-                if hasattr(delta, "thinking_content") and delta.thinking_content:
-                    thinking_content += delta.thinking_content
-                if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-                    reasoning_content += delta.reasoning_content
-        
-        full_content = "".join(content_parts)
-        
-        class Response:
-            def __init__(self, content, **kwargs):
-                self.content = content
-                for k, v in kwargs.items():
-                    setattr(self, k, v)
-        
-        return Response(
-            content=full_content,
-            thinking_content=thinking_content if thinking_content else None,
-            reasoning_content=reasoning_content if reasoning_content else None,
-            model_name=self.model_name,
-        )
+        response = await client.chat.completions.create(**kwargs)
+        return response.choices[0].message
     
     def stream(self, messages):
-        """
-        流式同步调用模型
-        
-        Args:
-            messages: 消息列表，格式为 [{"role": "user", "content": "..."}, ...]
-            
-        Yields:
-            包含内容的对象
-        """
+        """同步流式调用"""
         client = self._get_client()
         
-        params = {
+        kwargs = {
             "model": self.model_name,
             "messages": messages,
             "temperature": self.temperature,
-            "stream": True
+            "stream": True,
         }
         
         if self.max_tokens:
-            params["max_tokens"] = self.max_tokens
+            kwargs["max_tokens"] = self.max_tokens
         if self.top_p:
-            params["top_p"] = self.top_p
+            kwargs["top_p"] = self.top_p
         if self.thinking:
-            params["extra_body"] = {"thinking": {"type": "enabled"}}
+            kwargs["extra_body"] = {"enable_thinking": True}
         
-        response = client.chat.completions.create(**params)
-        
-        for chunk in response:
-            if chunk.choices and chunk.choices[0].delta:
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    class Chunk:
-                        def __init__(self, content):
-                            self.content = content
-                    yield Chunk(content=delta.content)
+        return client.chat.completions.create(**kwargs)
     
     async def astream(self, messages):
-        """
-        流式异步调用模型
-        
-        Args:
-            messages: 消息列表，格式为 [{"role": "user", "content": "..."}, ...]
-            
-        Yields:
-            包含内容的对象
-        """
+        """异步流式调用"""
         client = self._get_async_client()
         
-        params = {
+        kwargs = {
             "model": self.model_name,
             "messages": messages,
             "temperature": self.temperature,
-            "stream": True
+            "stream": True,
         }
         
         if self.max_tokens:
-            params["max_tokens"] = self.max_tokens
+            kwargs["max_tokens"] = self.max_tokens
         if self.top_p:
-            params["top_p"] = self.top_p
+            kwargs["top_p"] = self.top_p
         if self.thinking:
-            params["extra_body"] = {"thinking": {"type": "enabled"}}
+            kwargs["extra_body"] = {"enable_thinking": True}
         
-        response = await client.chat.completions.create(**params)
-        
-        async for chunk in response:
-            if chunk.choices and chunk.choices[0].delta:
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    class Chunk:
-                        def __init__(self, content):
-                            self.content = content
-                    yield Chunk(content=delta.content)
-
-
-class QwenGeneralModel(QwenChatModel):
-    """通义千问通用模型"""
+        return await client.chat.completions.create(**kwargs)
     
     @classmethod
     def qwen_flash(
@@ -287,7 +144,6 @@ class QwenGeneralModel(QwenChatModel):
         max_tokens=None,
         top_p=None,
         stream=False,
-        thinking=False,
         api_key=None,
     ):
         """创建qwen-flash模型实例"""
@@ -298,7 +154,7 @@ class QwenGeneralModel(QwenChatModel):
             max_tokens=max_tokens,
             top_p=top_p,
             stream=stream,
-            thinking=thinking
+            thinking=False
         )
     
     @classmethod
@@ -308,10 +164,10 @@ class QwenGeneralModel(QwenChatModel):
         max_tokens=None,
         top_p=None,
         stream=False,
-        thinking=True,
+        thinking=False,
         api_key=None,
     ):
-        """创建qwen3-max模型实例（默认开启深度思考）"""
+        """创建qwen3-max模型实例"""
         return cls(
             model_name="qwen3-max",
             api_key=api_key,
@@ -323,125 +179,222 @@ class QwenGeneralModel(QwenChatModel):
         )
 
 
-class QwenVisionModel(QwenChatModel):
+class QwenVisionModel(BaseSkillModel):
     """通义千问视觉模型"""
+
+    def __init__(self, model_name="qwen3-vl-plus", api_key=None, **kwargs):
+        super().__init__(model_name=model_name, api_key=api_key, **kwargs)
     
-    @classmethod
-    def qwen_vl_ocr(
-        cls,
-        temperature=0.7,
-        max_tokens=None,
-        top_p=None,
-        stream=False,
-        api_key=None,
-    ):
-        """创建qwen-vl-ocr模型实例"""
-        return cls(
-            model_name="qwen-vl-ocr",
-            api_key=api_key,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            stream=stream,
-            thinking=False
-        )
-    
-    @classmethod
-    def qwen3_vl_plus(
-        cls,
-        temperature=0.7,
-        max_tokens=None,
-        top_p=None,
-        stream=False,
-        api_key=None,
-    ):
-        """创建qwen3-vl-plus模型实例"""
-        return cls(
-            model_name="qwen3-vl-plus",
-            api_key=api_key,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            stream=stream,
-            thinking=False
-        )
-    
-    def process_image(self, image_path, prompt="请描述这张图片的内容"):
-        """处理单张图片"""
-        with open(image_path, "rb") as f:
-            image_base64 = base64.b64encode(f.read()).decode("utf-8")
+    def process_image(self, image_path, prompt="描述这张图片"):
+        """处理图片"""
+        # 如果是URL，直接使用
+        if image_path.startswith(('http://', 'https://')):
+            content = [{
+                "type": "image_url",
+                "image_url": {"url": image_path}
+            }]
+        else:
+            # 如果是本地文件，读取并转为base64
+            with open(image_path, "rb") as f:
+                image_data = base64.b64encode(f.read()).decode("utf-8")
+            content = [{
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
+            }]
+        
+        content.append({"type": "text", "text": prompt})
         
         messages = [{
             "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-            ]
+            "content": content
         }]
         
         result = self.invoke(messages)
-        return result["content"]
+        return result.content
     
-    def process_ocr(self, image_path):
+    def understand_image(self, image_path):
+        """理解图片内容"""
+        return self.process_image(image_path, prompt="请详细描述这张图片的内容，包括场景、物体、人物、颜色等细节。")
+    
+    def ocr_image(self, image_path):
         """OCR文字识别"""
-        return self.process_image(image_path, prompt="请提取这张图片中的所有文字内容")
+        return self.process_image(image_path, prompt="请提取这张图片中的所有文字内容，保持原有格式。")
+    
+    @classmethod
+    def qwen_vl_ocr(cls, api_key=None):
+        """创建qwen-vl-ocr模型实例"""
+        return cls(model_name="qwen-vl-ocr", api_key=api_key)
+    
+    @classmethod
+    def qwen3_vl_plus(cls, api_key=None):
+        """创建qwen3-vl-plus模型实例"""
+        return cls(model_name="qwen3-vl-plus", api_key=api_key)
 
 
 class QwenImageModel:
-    """通义千问图像生成模型"""
+    """通义千问图像生成模型 - 使用阿里云百炼API (仅支持HTTP同步方式)"""
     
-    def __init__(self, model_name="z-image-turbo", api_key=None):
+    def __init__(self, model_name="qwen-image-max", api_key=None):
         self.model_name = model_name
         self.api_key = api_key or settings.qwen_api_key
-        self.base_url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis"
+        # 阿里云百炼多模态生成API
+        self.base_url = settings.qwen_image_base_url or "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     
-    def generate(self, prompt, size="1024*1024", n=1):
-        """生成图像"""
-        import httpx
+    def generate(
+        self, 
+        prompt: str, 
+        size: str = "1024*1024", 
+        n: int = 1,
+        negative_prompt: str = None,
+        prompt_extend: bool = True,
+        watermark: bool = False
+    ) -> List[str]:
+        """
+        生成图像 (HTTP同步方式)
         
+        Args:
+            prompt: 图像描述
+            size: 图像尺寸，如 "1024*1024", "1024*768", "768*1024"
+            n: 生成数量（当前API可能只支持1张）
+            negative_prompt: 负面提示词
+            prompt_extend: 是否自动扩展提示词
+            watermark: 是否添加水印
+            
+        Returns:
+            图像URL列表
+        """
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         
+        # 构建请求体，参考阿里云百炼API格式
         data = {
             "model": self.model_name,
-            "input": {"prompt": prompt},
-            "parameters": {"size": size, "n": n}
+            "input": {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            },
+            "parameters": {
+                "size": size,
+                "prompt_extend": prompt_extend,
+                "watermark": watermark
+            }
         }
         
-        with httpx.Client(timeout=60.0) as client:
+        # 添加负面提示词（如果提供）
+        if negative_prompt:
+            data["parameters"]["negative_prompt"] = negative_prompt
+        
+        with httpx.Client(timeout=120.0) as client:
             response = client.post(self.base_url, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
             
-            if "output" in result and "results" in result["output"]:
-                return [item["url"] for item in result["output"]["results"]]
-            return []
+            # 解析响应，提取图像URL
+            urls = []
+            if "output" in result:
+                output = result["output"]
+                # 处理不同格式的响应
+                if "results" in output:
+                    for item in output["results"]:
+                        if "url" in item:
+                            urls.append(item["url"])
+                        elif "image_url" in item:
+                            urls.append(item["image_url"])
+                elif "image_url" in output:
+                    urls.append(output["image_url"])
+                elif "url" in output:
+                    urls.append(output["url"])
+                # 处理choices格式
+                elif "choices" in output:
+                    for choice in output["choices"]:
+                        if "message" in choice and "content" in choice["message"]:
+                            content = choice["message"]["content"]
+                            if isinstance(content, list):
+                                for item in content:
+                                    if isinstance(item, dict):
+                                        if "image_url" in item:
+                                            urls.append(item["image_url"])
+                                        elif "url" in item:
+                                            urls.append(item["url"])
+            
+            return urls
     
-    async def agenerate(self, prompt, size="1024*1024", n=1):
-        """异步生成图像"""
-        import httpx
+    def edit_image(
+        self,
+        image_url: str,
+        prompt: str,
+        size: str = "1024*1024",
+        negative_prompt: str = None
+    ) -> str:
+        """
+        编辑图像 (HTTP同步方式)
         
+        Args:
+            image_url: 原图URL
+            prompt: 编辑指令
+            size: 输出图像尺寸
+            negative_prompt: 负面提示词
+            
+        Returns:
+            编辑后的图像URL
+        """
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         
+        # 图像编辑也使用多模态生成API，传入参考图像
         data = {
             "model": self.model_name,
-            "input": {"prompt": prompt},
-            "parameters": {"size": size, "n": n}
+            "input": {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "image": image_url
+                            },
+                            {
+                                "text": f"请编辑这张图片：{prompt}"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "parameters": {
+                "size": size
+            }
         }
         
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(self.base_url, headers=headers, json=data)
+        if negative_prompt:
+            data["parameters"]["negative_prompt"] = negative_prompt
+        
+        with httpx.Client(timeout=120.0) as client:
+            response = client.post(self.base_url, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
             
-            if "output" in result and "results" in result["output"]:
-                return [item["url"] for item in result["output"]["results"]]
-            return []
+            # 解析响应
+            if "output" in result:
+                output = result["output"]
+                if "results" in output and len(output["results"]) > 0:
+                    return output["results"][0].get("url") or output["results"][0].get("image_url", "")
+                elif "image_url" in output:
+                    return output["image_url"]
+                elif "url" in output:
+                    return output["url"]
+            
+            return ""
     
     @classmethod
     def z_image_turbo(cls, api_key=None):
@@ -452,11 +405,16 @@ class QwenImageModel:
     def qwen_image(cls, api_key=None):
         """创建qwen-image模型实例"""
         return cls(model_name="qwen-image", api_key=api_key)
-
-
-class QwenCoderModel(QwenChatModel):
-    """通义千问编程模型"""
     
+    @classmethod
+    def qwen_image_max(cls, api_key=None):
+        """创建qwen-image-max模型实例（推荐）"""
+        return cls(model_name="qwen-image-max", api_key=api_key)
+
+
+class QwenCoderModel(BaseSkillModel):
+    """通义千问编程模型"""
+
     @classmethod
     def qwen3_coder_flash(
         cls,
@@ -498,67 +456,32 @@ class QwenCoderModel(QwenChatModel):
         )
 
 
-class QwenTranslationModel:
+class QwenTranslationModel(BaseSkillModel):
     """通义千问翻译模型"""
-    
-    def __init__(self, model_name="qwen-mt-flash", api_key=None):
-        self.model_name = model_name
-        self.api_key = api_key or settings.qwen_api_key
-        self.base_url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
-    
-    def translate(self, text, source_lang=None, target_lang="en"):
+
+    def translate(self, text: str, source_lang: str = None, target_lang: str = "en") -> str:
         """翻译文本"""
-        import httpx
+        source_text = source_lang if source_lang else "自动检测"
+        prompt = f"你是一个专业的翻译助手。请准确翻译用户提供的文本，保持原意和语气。只输出翻译结果。\n\n请将以下{source_text}文本翻译成{target_lang}，只输出翻译结果，不要添加解释：\n\n{text}"
         
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        messages = [
+            {"role": "user", "content": prompt}
+        ]
         
-        prompt = f"请将以下文本翻译成{target_lang}：\n{text}"
-        if source_lang:
-            prompt = f"请将以下{source_lang}文本翻译成{target_lang}：\n{text}"
-        
-        data = {
-            "model": self.model_name,
-            "input": {"messages": [{"role": "user", "content": prompt}]}
-        }
-        
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(self.base_url, headers=headers, json=data)
-            response.raise_for_status()
-            result = response.json()
-            
-            if "output" in result and "text" in result["output"]:
-                return result["output"]["text"]
-            return ""
+        result = self.invoke(messages)
+        return result.content
     
-    async def atranslate(self, text, source_lang=None, target_lang="en"):
+    async def atranslate(self, text: str, source_lang: str = None, target_lang: str = "en") -> str:
         """异步翻译文本"""
-        import httpx
+        source_text = source_lang if source_lang else "自动检测"
+        prompt = f"你是一个专业的翻译助手。请准确翻译用户提供的文本，保持原意和语气。只输出翻译结果。\n\n请将以下{source_text}文本翻译成{target_lang}，只输出翻译结果，不要添加解释：\n\n{text}"
         
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        messages = [
+            {"role": "user", "content": prompt}
+        ]
         
-        prompt = f"请将以下文本翻译成{target_lang}：\n{text}"
-        if source_lang:
-            prompt = f"请将以下{source_lang}文本翻译成{target_lang}：\n{text}"
-        
-        data = {
-            "model": self.model_name,
-            "input": {"messages": [{"role": "user", "content": prompt}]}
-        }
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(self.base_url, headers=headers, json=data)
-            response.raise_for_status()
-            result = response.json()
-            
-            if "output" in result and "text" in result["output"]:
-                return result["output"]["text"]
-            return ""
+        result = await self.ainvoke(messages)
+        return result.content
     
     @classmethod
     def qwen_mt_flash(cls, api_key=None):
@@ -569,4 +492,3 @@ class QwenTranslationModel:
     def qwen_mt_plus(cls, api_key=None):
         """创建qwen-mt-plus模型实例"""
         return cls(model_name="qwen-mt-plus", api_key=api_key)
-

@@ -164,7 +164,7 @@ async function editImage() {
     })
 
     const data = await request.post('/api/v1/skills/image-editing', {
-      image_path: uploadResponse.url,
+      image_path: (uploadResponse as any)[0].relative_path,
       prompt: prompt.value,
       is_expert: isExpert.value,
       size: size.value

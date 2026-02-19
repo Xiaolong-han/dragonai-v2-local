@@ -3,17 +3,17 @@
 路由说明：
 - GET /skills - 获取所有技能列表（元数据）
 - GET /skills/{skill_name} - 获取技能详情（元数据）
-- POST /skills/direct/image/generate - 直接触发图像生成
-- POST /skills/direct/image/edit - 直接触发图像编辑
-- POST /skills/direct/code/assist - 直接触发编程协助
-- POST /skills/direct/translate - 直接触发翻译
+- POST /skills/translation - 翻译
+- POST /skills/coding - 编程协助
+- POST /skills/image-generation - 图像生成
+- POST /skills/image-editing - 图像编辑
 
 注意：
 - 如需Agent智能识别意图并调用工具，请使用 POST /api/v1/chat/send
 - 直接触发API绕过Agent，直接使用专用模型
 """
 
-from typing import List, Optional, Literal
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -23,44 +23,20 @@ from app.tools import ALL_TOOLS
 from app.llm.model_factory import ModelFactory
 from app.core.dependencies import get_current_active_user
 from app.models.user import User
-from app.schemas.skills import SkillResponse, SkillDetailResponse
+from app.schemas.skills import (
+    SkillResponse, 
+    SkillDetailResponse,
+    TranslationRequest,
+    TranslationResponse,
+    CodingRequest,
+    CodingResponse,
+    ImageGenerationRequest,
+    ImageGenerationResponse,
+    ImageEditingRequest,
+    ImageEditingResponse
+)
 
 router = APIRouter(prefix="/skills", tags=["技能"])
-
-
-class ImageGenerateRequest(BaseModel):
-    """图像生成请求"""
-    prompt: str = Field(..., description="图像描述")
-    size: str = Field("1024*1024", description="图像尺寸")
-    n: int = Field(1, ge=1, le=4, description="生成数量")
-    model_mode: Literal["fast", "expert"] = Field("fast", description="模型模式")
-    negative_prompt: Optional[str] = Field(None, description="负面提示词")
-    prompt_extend: bool = Field(True, description="是否自动扩展提示词")
-
-
-class ImageEditRequest(BaseModel):
-    """图像编辑请求"""
-    image_url: str = Field(..., description="原图URL")
-    prompt: str = Field(..., description="编辑指令")
-    size: str = Field("1024*1024", description="输出图像尺寸")
-    model_mode: Literal["fast", "expert"] = Field("fast", description="模型模式")
-    negative_prompt: Optional[str] = Field(None, description="负面提示词")
-
-
-class CodeAssistRequest(BaseModel):
-    """编程协助请求"""
-    prompt: str = Field(..., description="编程需求")
-    language: str = Field("python", description="编程语言")
-    model_mode: Literal["fast", "expert"] = Field("fast", description="模型模式")
-    stream: bool = Field(True, description="是否流式响应")
-
-
-class TranslateRequest(BaseModel):
-    """翻译请求"""
-    text: str = Field(..., description="待翻译文本")
-    target_lang: str = Field(..., description="目标语言")
-    source_lang: Optional[str] = Field(None, description="源语言")
-    model_mode: Literal["fast", "expert"] = Field("fast", description="模型模式")
 
 
 @router.get("", response_model=List[SkillResponse])
@@ -91,135 +67,14 @@ async def get_skill_detail(skill_name: str):
     )
 
 
-@router.post("/direct/image/generate")
-async def direct_image_generate(
-    request: ImageGenerateRequest,
+@router.post("/translation", response_model=TranslationResponse)
+async def translate(
+    request: TranslationRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    """直接触发图像生成 - 不经过Agent"""
+    """翻译接口"""
     try:
-        model = ModelFactory.get_image_model(
-            is_turbo=request.model_mode == "fast"
-        )
-
-        urls = await model.agenerate(
-            prompt=request.prompt,
-            size=request.size,
-            n=request.n,
-            negative_prompt=request.negative_prompt,
-            prompt_extend=request.prompt_extend
-        )
-
-        if not urls:
-            raise HTTPException(status_code=500, detail="图像生成失败，未返回URL")
-
-        return {
-            "success": True,
-            "data": {
-                "urls": urls,
-                "prompt": request.prompt,
-                "count": len(urls)
-            }
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"图像生成失败: {str(e)}")
-
-
-@router.post("/direct/image/edit")
-async def direct_image_edit(
-    request: ImageEditRequest,
-    current_user: User = Depends(get_current_active_user)
-):
-    """直接触发图像编辑 - 不经过Agent"""
-    try:
-        model = ModelFactory.get_image_model(
-            is_turbo=request.model_mode == "fast"
-        )
-
-        url = await model.aedit_image(
-            image_url=request.image_url,
-            prompt=request.prompt,
-            size=request.size,
-            negative_prompt=request.negative_prompt
-        )
-
-        if not url:
-            raise HTTPException(status_code=500, detail="图像编辑失败，未返回URL")
-
-        return {
-            "success": True,
-            "data": {
-                "url": url,
-                "prompt": request.prompt
-            }
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"图像编辑失败: {str(e)}")
-
-
-@router.post("/direct/code/assist")
-async def direct_code_assist(
-    request: CodeAssistRequest,
-    current_user: User = Depends(get_current_active_user)
-):
-    """直接触发编程协助 - 不经过Agent"""
-    try:
-        if request.stream:
-            async def event_generator():
-                model = ModelFactory.get_coder_model(
-                    is_plus=request.model_mode == "expert"
-                )
-
-                messages = [
-                    {"role": "system", "content": f"你是一个专业的{request.language}编程助手。请提供清晰、高效、有注释的代码，并解释关键逻辑。"},
-                    {"role": "user", "content": request.prompt}
-                ]
-
-                async for chunk in model.astream(messages):
-                    yield f"data: {json.dumps({'type': 'content', 'data': chunk.content})}\n\n"
-
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(
-                event_generator(),
-                media_type="text/event-stream"
-            )
-        else:
-            model = ModelFactory.get_coder_model(
-                is_plus=request.model_mode == "expert"
-            )
-
-            messages = [
-                {"role": "system", "content": f"你是一个专业的{request.language}编程助手。请提供清晰、高效、有注释的代码，并解释关键逻辑。"},
-                {"role": "user", "content": request.prompt}
-            ]
-
-            result = await model.ainvoke(messages)
-
-            return {
-                "success": True,
-                "data": {
-                    "content": result.content
-                }
-            }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"编程协助失败: {str(e)}")
-
-
-@router.post("/direct/translate")
-async def direct_translate(
-    request: TranslateRequest,
-    current_user: User = Depends(get_current_active_user)
-):
-    """直接触发翻译 - 不经过Agent"""
-    try:
-        model = ModelFactory.get_translation_model(
-            is_plus=request.model_mode == "expert"
-        )
+        model = ModelFactory.get_translation_model(is_plus=request.is_expert)
 
         result = await model.atranslate(
             text=request.text,
@@ -227,14 +82,87 @@ async def direct_translate(
             target_lang=request.target_lang
         )
 
-        return {
-            "success": True,
-            "data": {
-                "original": request.text,
-                "translated": result,
-                "source_lang": request.source_lang or "auto",
-                "target_lang": request.target_lang
-            }
-        }
+        return TranslationResponse(
+            text=result,
+            source_lang=request.source_lang,
+            target_lang=request.target_lang,
+            model_name="expert" if request.is_expert else "fast"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"翻译失败: {str(e)}")
+
+
+@router.post("/coding", response_model=CodingResponse)
+async def coding(
+    request: CodingRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """编程协助接口"""
+    try:
+        model = ModelFactory.get_coder_model(is_plus=request.is_expert)
+
+        messages = [
+            {"role": "system", "content": "你是一个专业的编程助手。请提供清晰、高效、有注释的代码，并解释关键逻辑。"},
+            {"role": "user", "content": request.prompt}
+        ]
+
+        result = await model.ainvoke(messages)
+
+        return CodingResponse(
+            content=result.content,
+            model_name="expert" if request.is_expert else "fast",
+            thinking_content=getattr(result, 'thinking_content', None),
+            reasoning_content=getattr(result, 'reasoning_content', None)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"编程协助失败: {str(e)}")
+
+
+@router.post("/image-generation", response_model=ImageGenerationResponse)
+async def image_generation(
+    request: ImageGenerationRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """图像生成接口"""
+    try:
+        model = ModelFactory.get_image_model(is_turbo=not request.is_expert)
+
+        urls = await model.agenerate(
+            prompt=request.prompt,
+            size=request.size or "1024*1024",
+            n=request.n or 1
+        )
+
+        if not urls:
+            raise HTTPException(status_code=500, detail="图像生成失败，未返回URL")
+
+        return ImageGenerationResponse(images=urls)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"图像生成失败: {str(e)}")
+
+
+@router.post("/image-editing", response_model=ImageEditingResponse)
+async def image_editing(
+    request: ImageEditingRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """图像编辑接口"""
+    try:
+        model = ModelFactory.get_image_model(is_turbo=not request.is_expert)
+
+        url = await model.aedit_image(
+            image_url=request.image_path,
+            prompt=request.prompt,
+            size=request.size or "1024*1024"
+        )
+
+        if not url:
+            raise HTTPException(status_code=500, detail="图像编辑失败，未返回URL")
+
+        return ImageEditingResponse(images=[url])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"图像编辑失败: {str(e)}")

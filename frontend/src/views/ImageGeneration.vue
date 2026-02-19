@@ -65,19 +65,19 @@
         <h3>生成结果</h3>
         <div class="image-grid">
           <div
-            v-for="(url, idx) in result.urls"
+            v-for="(url, idx) in result.images"
             :key="idx"
             class="image-item"
             @click="previewImage(url)"
           >
-            <img :src="url" :alt="`生成的图像 ${idx + 1}`" />
+            <img :src="url" :alt="`生成的图像 ${(idx as number) + 1}`" />
             <div class="image-overlay">
               <el-icon><ZoomIn /></el-icon>
             </div>
           </div>
         </div>
         <div class="prompt-display">
-          <strong>提示词:</strong> {{ result.prompt }}
+          <strong>提示词:</strong> {{ prompt }}
         </div>
       </div>
     </div>
@@ -111,7 +111,7 @@ async function generate() {
       prompt: prompt.value,
       size: size.value,
       n: n.value,
-      model_mode: modelMode.value
+      is_expert: modelMode.value === 'expert'
     })
     ElMessage.success('图像生成成功')
   } catch (error: any) {

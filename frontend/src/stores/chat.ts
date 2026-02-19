@@ -94,19 +94,19 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(assistantMessage)
 
     try {
-      const response = await request.post('/api/v1/skills/direct/translate', {
+      const response = await request.post('/api/v1/skills/translation', {
         text: content,
         target_lang: options?.targetLang || 'zh',
         source_lang: options?.sourceLang,
-        model_mode: 'fast'
+        is_expert: false
       }) as any
 
-      if (response.success && response.data) {
+      if (response.text) {
         const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
         if (msgIndex !== -1) {
           messages.value[msgIndex] = {
             ...messages.value[msgIndex],
-            content: response.data.translated,
+            content: response.text,
             is_streaming: false
           }
         }
@@ -159,19 +159,18 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(assistantMessage)
 
     try {
-      const response = await request.post('/api/v1/skills/direct/code/assist', {
+      const response = await request.post('/api/v1/skills/coding', {
         prompt: content,
         language: options?.language || 'python',
-        model_mode: 'fast',
-        stream: false
+        is_expert: false
       }) as any
 
-      if (response.success && response.data) {
+      if (response.content) {
         const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
         if (msgIndex !== -1) {
           messages.value[msgIndex] = {
             ...messages.value[msgIndex],
-            content: response.data.content,
+            content: response.content,
             is_streaming: false
           }
         }
@@ -224,15 +223,15 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(assistantMessage)
 
     try {
-      const response = await request.post('/api/v1/skills/direct/image/generate', {
+      const response = await request.post('/api/v1/skills/image-generation', {
         prompt: content,
         size: options?.size || '1024*1024',
         n: options?.n || 1,
-        model_mode: 'fast'
+        is_expert: false
       }) as any
 
-      if (response.success && response.data) {
-        const urls = response.data.urls || []
+      if (response.images) {
+        const urls = response.images || []
         const resultText = `已生成 ${urls.length} 张图片：\n\n` + 
           urls.map((url: string) => `![生成的图片](${url})`).join('\n\n')
         

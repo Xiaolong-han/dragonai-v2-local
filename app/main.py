@@ -74,7 +74,10 @@ async def lifespan(app: FastAPI):
     await redis_client.connect()
     logger.info("Redis connected")
 
-    await cache_warmup.warmup_all()
+    try:
+        await cache_warmup.warmup_all()
+    except Exception as e:
+        logger.warning(f"[CACHE WARMUP] Cache warmup failed, continuing startup: {e}")
 
     yield
 

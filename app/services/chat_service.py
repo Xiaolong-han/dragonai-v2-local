@@ -83,14 +83,11 @@ class ChatService:
         try:
             logger.info(f"[CHAT] 开始处理消息: conversation_id={conversation_id}")
 
-            # 1. 处理多模态输入
             context_parts = [content]
 
             if images:
                 for img in images:
-                    vision_model = ModelFactory.get_vision_model()
-                    image_understanding = await vision_model.aunderstand_image(img)
-                    context_parts.append(f"[图片内容: {image_understanding}]")
+                    context_parts.append(f"[图片路径: {img}]")
 
             if files:
                 for file in files:
@@ -128,6 +125,34 @@ class ChatService:
 
             logger.info(f"[CHAT] Agent流式执行完成")
         except Exception as e:
+            error_msg = str(e)
+            if "tool_calls" in error_msg and "must be followed by tool messages" in error_msg:
+                logger.warning(f"[CHAT] 检测到无效的tool_calls，清理对话状态并重试")
+                from app.agents.agent_factory import AgentFactory
+                AgentFactory.reset_conversation_state(str(conversation_id))
+                
+                try:
+                    agent = AgentFactory.create_chat_agent(
+                        is_expert=is_expert,
+                        enable_thinking=enable_thinking
+                    )
+                    config = AgentFactory.get_agent_config(str(conversation_id))
+                    
+                    async for message, metadata in agent.astream(
+                        {"messages": [{"role": "user", "content": full_context}]},
+                        config,
+                        stream_mode="messages"
+                    ):
+                        formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
+                        if formatted:
+                            yield formatted
+                    logger.info(f"[CHAT] 重试执行成功")
+                    return
+                except Exception as retry_error:
+                    logger.error(f"[CHAT] 重试执行失败: {str(retry_error)}")
+                    yield {"type": "error", "data": {"message": str(retry_error)}}
+                    return
+            
             logger.error(f"[CHAT] 处理消息时出错: {str(e)}", exc_info=True)
             yield {"type": "error", "data": {"message": str(e)}}
 

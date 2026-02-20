@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     model_image_fast: str = "qwen-image"  # 使用qwen-image作为快速模型
     model_image_expert: str = "qwen-image-plus"  # 专家模型也用qwen-image-max
     
+    # 图像编辑模型配置
+    model_image_edit: str = "qwen-image-edit"  # 图像编辑模型
+    
     # 编程模型配置
     model_coder_fast: str = "qwen3-coder-flash"
     model_coder_expert: str = "qwen3-coder-plus"

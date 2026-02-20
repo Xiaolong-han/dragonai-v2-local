@@ -99,11 +99,12 @@ watch(
 function handleSendMessage(content: string, files: any[], skill?: string, options?: any) {
   if (!currentConversationId.value) return
   
-  // 如果有技能，使用技能发送
+  const imageUrls = files.filter((url): url is string => typeof url === 'string')
+  
   if (skill) {
-    chatStore.sendMessageWithSkill(currentConversationId.value, content, skill, options)
+    chatStore.sendMessageWithSkill(currentConversationId.value, content, skill, options, imageUrls)
   } else {
-    chatStore.sendMessage(currentConversationId.value, content)
+    chatStore.sendMessage(currentConversationId.value, content, imageUrls)
   }
 }
 

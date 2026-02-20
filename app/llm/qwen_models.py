@@ -144,6 +144,30 @@ class QwenVisionModel(BaseSkillModel):
     def __init__(self, model_name="qwen3-vl-plus", api_key=None, **kwargs):
         super().__init__(model_name=model_name, api_key=api_key, **kwargs)
     
+    def _resolve_image_path(self, image_path: str):
+        """解析图片路径，返回可读取的文件路径
+        
+        支持：
+        1. HTTP/HTTPS URL - 返回 None（直接使用）
+        2. 相对路径 - 通过 file_storage 解析
+        3. 绝对路径 - 直接使用
+        """
+        if image_path.startswith(('http://', 'https://')):
+            return None
+        
+        from app.storage import file_storage
+        from pathlib import Path
+        
+        file_path = file_storage.get_file_path(image_path)
+        if file_path and file_path.exists():
+            return file_path
+        
+        abs_path = Path(image_path)
+        if abs_path.exists():
+            return abs_path
+        
+        return None
+
     def _build_image_content(self, image_path, prompt):
         """构建图片消息内容"""
         if image_path.startswith(('http://', 'https://')):
@@ -152,12 +176,24 @@ class QwenVisionModel(BaseSkillModel):
                 "image_url": {"url": image_path}
             }]
         else:
-            with open(image_path, "rb") as f:
-                image_data = base64.b64encode(f.read()).decode("utf-8")
-            content = [{
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
-            }]
+            resolved_path = self._resolve_image_path(image_path)
+            if resolved_path:
+                import mimetypes
+                mime_type, _ = mimetypes.guess_type(str(resolved_path))
+                if not mime_type:
+                    mime_type = "image/jpeg"
+                
+                with open(resolved_path, "rb") as f:
+                    image_data = base64.b64encode(f.read()).decode("utf-8")
+                content = [{
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime_type};base64,{image_data}"}
+                }]
+            else:
+                content = [{
+                    "type": "image_url",
+                    "image_url": {"url": image_path}
+                }]
         
         content.append({"type": "text", "text": prompt})
         return content
@@ -370,6 +406,47 @@ class QwenImageModel:
             urls = self._parse_image_urls(result)
             return urls[0] if urls else ""
     
+    async def _prepare_image_content(self, image_source: str) -> dict:
+        """准备图片内容，支持多种格式
+        
+        支持：
+        1. HTTP/HTTPS URL
+        2. Base64 数据URI
+        3. 本地相对路径（通过file_storage）
+        4. 本地绝对路径
+        """
+        if image_source.startswith(('http://', 'https://')):
+            return {"image": image_source}
+        
+        if image_source.startswith('data:image'):
+            return {"image": image_source}
+        
+        from app.storage import file_storage
+        
+        file_path = file_storage.get_file_path(image_source)
+        if file_path and file_path.exists():
+            return self._encode_local_file(file_path)
+        
+        from pathlib import Path
+        abs_path = Path(image_source)
+        if abs_path.exists():
+            return self._encode_local_file(abs_path)
+        
+        return {"image": image_source}
+    
+    def _encode_local_file(self, file_path) -> dict:
+        """将本地文件编码为Base64"""
+        import mimetypes
+        
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        if not mime_type:
+            mime_type = "image/jpeg"
+        
+        with open(file_path, "rb") as f:
+            image_data = base64.b64encode(f.read()).decode("utf-8")
+        
+        return {"image": f"data:{mime_type};base64,{image_data}"}
+
     async def aedit_image(
         self,
         image_url: str,
@@ -378,10 +455,16 @@ class QwenImageModel:
         negative_prompt: str = None
     ) -> str:
         """编辑图像（异步）"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        
+        image_content = await self._prepare_image_content(image_url)
+        logger.info(f"[IMAGE_EDIT] 准备图片内容完成, model={self.model_name}")
         
         data = {
             "model": self.model_name,
@@ -390,8 +473,8 @@ class QwenImageModel:
                     {
                         "role": "user",
                         "content": [
-                            {"image": image_url},
-                            {"text": f"请编辑这张图片：{prompt}"}
+                            image_content,
+                            {"text": prompt}
                         ]
                     }
                 ]
@@ -404,8 +487,17 @@ class QwenImageModel:
         
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(self.base_url, headers=headers, json=data)
-            response.raise_for_status()
+            
+            if response.status_code != 200:
+                try:
+                    error_detail = response.json()
+                    logger.error(f"[IMAGE_EDIT] API错误详情: {error_detail}")
+                    raise ValueError(f"API错误 [{response.status_code}]: {error_detail}")
+                except Exception:
+                    response.raise_for_status()
+            
             result = response.json()
+            logger.info(f"[IMAGE_EDIT] API响应: {result}")
             
             urls = self._parse_image_urls(result)
             return urls[0] if urls else ""

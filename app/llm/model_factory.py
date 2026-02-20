@@ -77,6 +77,19 @@ class ModelFactory:
         )
 
     @classmethod
+    def get_image_edit_model(cls, **kwargs):
+        """获取图像编辑模型
+
+        注意：图像编辑使用专门的 qwen-image-edit 模型
+        """
+        from app.llm.qwen_models import QwenImageModel
+
+        return QwenImageModel(
+            model_name=settings.model_image_edit,
+            api_key=settings.qwen_api_key
+        )
+
+    @classmethod
     def get_coder_model(cls, is_plus: bool = False, **kwargs):
         """获取编程模型
 

@@ -34,12 +34,13 @@ async def edit_image(image_url: str, prompt: str) -> str:
     可以执行添加元素、改变风格、调整颜色、替换背景等操作。
 
     Args:
-        image_url: 待编辑图像的URL
+        image_url: 待编辑图像的路径或URL。可以是相对路径(如 images/xxx.png)、
+                   本地绝对路径、或完整的HTTP URL。
         prompt: 编辑指令描述，详细说明想要如何修改图像
 
     Returns:
         编辑后图像的URL
     """
-    model = ModelFactory.get_image_model(is_turbo=True)
+    model = ModelFactory.get_image_edit_model()
     url = await model.aedit_image(image_url=image_url, prompt=prompt)
     return f"图像编辑完成：{url}"

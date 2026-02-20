@@ -108,3 +108,33 @@ class AgentFactory:
                 "thread_id": f"conversation_{conversation_id}"
             }
         }
+
+    @classmethod
+    def reset_conversation_state(cls, conversation_id: str) -> bool:
+        """重置对话状态
+        
+        清理指定对话的checkpointer状态，用于处理无效的tool_calls等问题。
+        
+        Args:
+            conversation_id: 对话ID
+            
+        Returns:
+            是否成功清理
+        """
+        try:
+            checkpointer = cls.get_checkpointer()
+            thread_id = f"conversation_{conversation_id}"
+            config = {"configurable": {"thread_id": thread_id}}
+            
+            if hasattr(checkpointer, 'delete'):
+                checkpointer.delete(config)
+                return True
+            elif hasattr(checkpointer, '_storage'):
+                if thread_id in checkpointer._storage:
+                    del checkpointer._storage[thread_id]
+                    return True
+            return False
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"[AGENT] 重置对话状态失败: {e}")
+            return False

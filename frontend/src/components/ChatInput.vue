@@ -173,6 +173,7 @@ import {
   MagicStick
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import request from '@/utils/request'
 
 interface UploadedFile {
   id: string
@@ -197,7 +198,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'send', value: string, files: UploadedFile[], skill?: string, options?: any): void
+  (e: 'send', value: string, files: string[], skill?: string, options?: any): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -368,24 +369,44 @@ function removeFile(id: string) {
   }
 }
 
-function handleSend() {
+async function handleSend() {
   const value = inputValue.value.trim()
   if ((value || uploadedFiles.value.length > 0) && !props.loading && !props.disabled) {
     const options: any = {}
     
-    // 如果是翻译技能，添加目标语言
     if (activeSkill.value?.name === 'translation') {
       options.targetLang = targetLang.value
     }
     
+    const uploadedUrls: string[] = []
+    const uploadPromises: Promise<void>[] = []
+    
+    for (const file of uploadedFiles.value) {
+      const uploadPromise = (async () => {
+        try {
+          const formData = new FormData()
+          formData.append('files', file.file)
+          const response = await request.post('/api/v1/files/upload', formData)
+          if (response && (response as any)[0]) {
+            uploadedUrls.push((response as any)[0].relative_path)
+          }
+        } catch (error) {
+          console.error('Failed to upload file:', error)
+          ElMessage.error(`文件 ${file.name} 上传失败`)
+        }
+      })()
+      uploadPromises.push(uploadPromise)
+    }
+    
+    await Promise.all(uploadPromises)
+    
     emit('send', 
       value, 
-      [...uploadedFiles.value], 
+      uploadedUrls, 
       activeSkill.value?.name,
       Object.keys(options).length > 0 ? options : undefined
     )
     
-    // 重置状态
     inputValue.value = ''
     uploadedFiles.value.forEach(file => {
       if (file.preview) {
@@ -393,7 +414,6 @@ function handleSend() {
       }
     })
     uploadedFiles.value = []
-    // 保持技能模式，方便连续使用
   }
 }
 

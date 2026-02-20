@@ -52,15 +52,15 @@ export const useChatStore = defineStore('chat', () => {
     options?: SkillOptions,
     images?: string[]
   ) {
-    // 根据技能类型选择直接调用专项API还是通过chat接口
     if (skill === 'translation') {
       _sendTranslationSkill(conversationId, content, options)
     } else if (skill === 'coding') {
       _sendCodingSkill(conversationId, content, options)
     } else if (skill === 'image_generation') {
       _sendImageGenerationSkill(conversationId, content, options)
+    } else if (skill === 'image_editing') {
+      _sendImageEditingSkill(conversationId, content, images, options)
     } else {
-      // 其他技能通过chat接口
       _sendMessageInternal(conversationId, content, images, skill, options)
     }
   }
@@ -258,6 +258,80 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
       ElMessage.error('图像生成失败')
+    } finally {
+      sending.value = false
+    }
+  }
+
+  async function _sendImageEditingSkill(
+    conversationId: number,
+    content: string,
+    images: string[] | undefined,
+    options?: SkillOptions
+  ) {
+    if (!images || images.length === 0) {
+      ElMessage.error('请先上传图片')
+      return
+    }
+
+    sending.value = true
+
+    const userMessage: ChatMessage = {
+      id: Date.now(),
+      conversation_id: conversationId,
+      role: 'user',
+      content: `[图片编辑] ${content}`,
+      created_at: new Date().toISOString()
+    }
+    messages.value.push(userMessage)
+
+    const assistantMessageId = Date.now() + 1
+    const assistantMessage: ChatMessage = {
+      id: assistantMessageId,
+      conversation_id: conversationId,
+      role: 'assistant',
+      content: '',
+      created_at: new Date().toISOString(),
+      is_streaming: true
+    }
+    messages.value.push(assistantMessage)
+
+    try {
+      const response = await request.post('/api/v1/skills/image-editing', {
+        image_path: images[0],
+        prompt: content,
+        size: options?.size || '1024*1024',
+        is_expert: false
+      }) as any
+
+      if (response.images) {
+        const urls = response.images || []
+        const resultText = `图像编辑完成：\n\n` + 
+          urls.map((url: string) => `![编辑后的图片](${url})`).join('\n\n')
+        
+        const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
+        if (msgIndex !== -1) {
+          messages.value[msgIndex] = {
+            ...messages.value[msgIndex],
+            content: resultText,
+            is_streaming: false
+          }
+        }
+        ElMessage.success('图像编辑完成')
+      } else {
+        throw new Error('图像编辑失败')
+      }
+    } catch (error) {
+      console.error('Image editing error:', error)
+      const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
+      if (msgIndex !== -1) {
+        messages.value[msgIndex] = {
+          ...messages.value[msgIndex],
+          content: '图像编辑失败，请重试',
+          is_streaming: false
+        }
+      }
+      ElMessage.error('图像编辑失败')
     } finally {
       sending.value = false
     }

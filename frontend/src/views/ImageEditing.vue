@@ -158,13 +158,13 @@ async function editImage() {
   loading.value = true
   try {
     const formData = new FormData()
-    formData.append('file', selectedFile.value)
-    const uploadResponse = await request.post('/api/v1/files/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    formData.append('files', selectedFile.value)
+    const uploadResponse = await request.post('/api/v1/files/upload', formData)
+
+    const relativePath = (uploadResponse as any)[0].relative_path
 
     const data = await request.post('/api/v1/skills/image-editing', {
-      image_path: (uploadResponse as any)[0].relative_path,
+      image_path: relativePath,
       prompt: prompt.value,
       is_expert: isExpert.value,
       size: size.value

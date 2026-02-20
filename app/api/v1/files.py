@@ -9,6 +9,7 @@ from fastapi import (
     File,
     Query,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -106,6 +107,24 @@ async def delete_file(
             detail="File not found"
         )
     return None
+
+
+@router.get("/serve/{relative_path:path}")
+async def serve_file(
+    relative_path: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """提供文件访问服务"""
+    file_path = file_storage.get_file_path(relative_path)
+    if not file_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found"
+        )
+    return FileResponse(
+        path=file_path,
+        filename=file_path.name
+    )
 
 
 @router.post("/ocr", response_model=OCRResponse)

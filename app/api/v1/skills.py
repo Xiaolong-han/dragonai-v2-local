@@ -150,7 +150,7 @@ async def image_editing(
 ):
     """图像编辑接口"""
     try:
-        model = ModelFactory.get_image_model(is_turbo=not request.is_expert)
+        model = ModelFactory.get_image_edit_model()
 
         url = await model.aedit_image(
             image_url=request.image_path,

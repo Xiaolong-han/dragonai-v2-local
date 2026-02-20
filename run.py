@@ -13,9 +13,11 @@ import uvicorn
 
 if __name__ == "__main__":
     uvicorn.run(
-        "app.main:app",
+        "app.main:create_app",
         host="0.0.0.0",
         port=8000,
-        reload=False,  # 禁用 reload 以避免子进程问题
-        workers=1
+        loop="asyncio",
+        reload=True, 
+        factory= True
+        # workers=1
     )

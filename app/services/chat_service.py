@@ -129,7 +129,7 @@ class ChatService:
             if "tool_calls" in error_msg and "must be followed by tool messages" in error_msg:
                 logger.warning(f"[CHAT] 检测到无效的tool_calls，清理对话状态并重试")
                 from app.agents.agent_factory import AgentFactory
-                AgentFactory.reset_conversation_state(str(conversation_id))
+                await AgentFactory.reset_conversation_state(str(conversation_id))
                 
                 try:
                     agent = AgentFactory.create_chat_agent(

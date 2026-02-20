@@ -1,9 +1,6 @@
 import asyncio
 import os
 
-if os.name == 'nt':
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
 import logging
 from logging.handlers import RotatingFileHandler
 from contextlib import asynccontextmanager
@@ -15,6 +12,7 @@ from app.config import settings
 from app.core.redis import redis_client
 from app.core.cache_warmup import cache_warmup
 from app.core.exceptions import DragonAIException
+from app.agents.agent_factory import AgentFactory
 from app.api.v1 import auth, conversations, files, knowledge, skills, models, chat
 
 
@@ -50,32 +48,6 @@ def setup_logging():
     logger.addHandler(file_handler)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    setup_logging()
-    logger = logging.getLogger()
-    logger.info("Starting DragonAI...")
-
-    await redis_client.connect()
-    logger.info("Redis connected")
-
-    await cache_warmup.warmup_all()
-
-    yield
-
-    await redis_client.close()
-    logger.info("Shutting down DragonAI")
-
-
-app = FastAPI(
-    title="DragonAI API",
-    description="DragonAI - 智能AI助手",
-    version="2.0.0",
-    lifespan=lifespan
-)
-
-
-@app.exception_handler(DragonAIException)
 async def dragonai_exception_handler(request: Request, exc: DragonAIException):
     """统一异常处理"""
     return JSONResponse(
@@ -90,33 +62,61 @@ async def dragonai_exception_handler(request: Request, exc: DragonAIException):
     )
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    setup_logging()
+    logger = logging.getLogger()
+    logger.info("Starting DragonAI...")
 
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(conversations.router, prefix="/api/v1")
-app.include_router(files.router, prefix="/api/v1")
-app.include_router(knowledge.router, prefix="/api/v1")
-app.include_router(skills.router, prefix="/api/v1")
-app.include_router(models.router, prefix="/api/v1")
-app.include_router(chat.router, prefix="/api/v1")
+    await AgentFactory.init_checkpointer()
+    logger.info("Checkpointer initialized")
 
+    await redis_client.connect()
+    logger.info("Redis connected")
 
-@app.get("/")
-async def root():
-    return {"message": "Welcome to DragonAI API", "version": "2.0.0"}
+    await cache_warmup.warmup_all()
 
+    yield
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+    await AgentFactory.close_checkpointer()
+
+    await redis_client.close()
+    logger.info("Shutting down DragonAI")
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+def create_app():
+    """创建 FastAPI 应用实例"""
+    app = FastAPI(
+        title="DragonAI API",
+        description="DragonAI - 智能AI助手",
+        version="2.0.0",
+        lifespan=lifespan
+    )
+    
+    app.add_exception_handler(DragonAIException, dragonai_exception_handler)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(auth.router, prefix="/api/v1")
+    app.include_router(conversations.router, prefix="/api/v1")
+    app.include_router(files.router, prefix="/api/v1")
+    app.include_router(knowledge.router, prefix="/api/v1")
+    app.include_router(skills.router, prefix="/api/v1")
+    app.include_router(models.router, prefix="/api/v1")
+    app.include_router(chat.router, prefix="/api/v1")
+
+    @app.get("/")
+    async def root():
+        return {"message": "Welcome to DragonAI API", "version": "2.0.0"}
+
+    @app.get("/health")
+    async def health_check():
+        return {"status": "healthy"}
+
+    return app

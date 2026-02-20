@@ -1,12 +1,17 @@
 """Agent工厂 - 使用LangChain 1.0+推荐的create_agent"""
 
-from typing import Optional
+import logging
+from typing import Optional, Union
+
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from app.config import settings
 from app.tools import ALL_TOOLS
 from app.llm.model_factory import ModelFactory
+
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT = """你是一个强大的AI助手，能够帮助用户处理各种任务。
@@ -53,17 +58,61 @@ print("Hello, World!")
 class AgentFactory:
     """Agent工厂类 - 使用LangChain 1.0+推荐的create_agent"""
 
-    _checkpointer: Optional[InMemorySaver] = None
+    _checkpointer: Optional[Union[AsyncPostgresSaver, InMemorySaver]] = None
+    _context_manager: Optional[object] = None
+    _initialized: bool = False
 
     @classmethod
-    def get_checkpointer(cls) -> InMemorySaver:
-        """获取InMemorySaver实例
+    async def init_checkpointer(cls) -> bool:
+        """初始化 checkpointer (异步版本)
+        
+        在应用启动时调用，创建数据库连接并初始化表结构。
+        
+        Returns:
+            bool: 是否成功使用 PostgreSQL
+        """
+        try:
+            if settings.database_url:
+                cls._context_manager = AsyncPostgresSaver.from_conn_string(settings.database_url)
+                cls._checkpointer = await cls._context_manager.__aenter__()
+                if not cls._initialized:
+                    await cls._checkpointer.setup()
+                    cls._initialized = True
+                logger.info("[AGENT] AsyncPostgresSaver 初始化成功")
+                return True
+        except Exception as e:
+            logger.warning(f"[AGENT] AsyncPostgresSaver 初始化失败，降级使用 InMemorySaver: {e}")
+        
+        cls._checkpointer = InMemorySaver()
+        cls._context_manager = None
+        return False
 
-        使用内存存储作为checkpointer
-        注意：重启后对话状态会丢失，如需持久化请使用PostgresSaver（非Windows环境）
+    @classmethod
+    async def close_checkpointer(cls) -> None:
+        """关闭 checkpointer 连接 (异步版本)
+        
+        在应用关闭时调用，清理数据库连接。
+        """
+        if cls._context_manager and hasattr(cls._context_manager, '__aexit__'):
+            try:
+                await cls._context_manager.__aexit__(None, None, None)
+                logger.info("[AGENT] AsyncPostgresSaver 连接已关闭")
+            except Exception as e:
+                logger.error(f"[AGENT] 关闭 AsyncPostgresSaver 连接失败: {e}")
+        cls._checkpointer = None
+        cls._context_manager = None
+
+    @classmethod
+    def get_checkpointer(cls) -> Union[AsyncPostgresSaver, InMemorySaver]:
+        """获取 checkpointer 实例
+        
+        如果尚未初始化，会自动初始化。
+        
+        Returns:
+            AsyncPostgresSaver 或 InMemorySaver 实例
         """
         if cls._checkpointer is None:
-            cls._checkpointer = InMemorySaver()
+            raise RuntimeError("Checkpointer not initialized. Call init_checkpointer() first.")
         return cls._checkpointer
 
     @classmethod
@@ -110,8 +159,8 @@ class AgentFactory:
         }
 
     @classmethod
-    def reset_conversation_state(cls, conversation_id: str) -> bool:
-        """重置对话状态
+    async def reset_conversation_state(cls, conversation_id: str) -> bool:
+        """重置对话状态 (异步版本)
         
         清理指定对话的checkpointer状态，用于处理无效的tool_calls等问题。
         
@@ -124,10 +173,12 @@ class AgentFactory:
         try:
             checkpointer = cls.get_checkpointer()
             thread_id = f"conversation_{conversation_id}"
-            config = {"configurable": {"thread_id": thread_id}}
             
-            if hasattr(checkpointer, 'delete'):
-                checkpointer.delete(config)
+            if hasattr(checkpointer, 'adelete_thread'):
+                await checkpointer.adelete_thread(thread_id)
+                return True
+            elif hasattr(checkpointer, 'delete_thread'):
+                checkpointer.delete_thread(thread_id)
                 return True
             elif hasattr(checkpointer, '_storage'):
                 if thread_id in checkpointer._storage:
@@ -135,6 +186,5 @@ class AgentFactory:
                     return True
             return False
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(f"[AGENT] 重置对话状态失败: {e}")
+            logger.error(f"[AGENT] 重置对话状态失败: {e}")
             return False

@@ -237,6 +237,46 @@ class QwenImageModel:
         self.api_key = api_key or settings.qwen_api_key
         self.base_url = settings.qwen_image_base_url or "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     
+    async def _download_and_save_image(self, image_url: str, prefix: str = "generated") -> str:
+        """下载远程图片并保存到本地存储
+        
+        Args:
+            image_url: 远程图片URL
+            prefix: 文件名前缀（generated 或 edited）
+            
+        Returns:
+            带签名的访问URL
+        """
+        import uuid
+        from datetime import datetime
+        from pathlib import Path
+        from app.storage import file_storage
+        from app.core.security import generate_signed_url
+        
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(image_url)
+            response.raise_for_status()
+            
+            content_type = response.headers.get("content-type", "image/png")
+            ext = ".png"
+            if "jpeg" in content_type or "jpg" in content_type:
+                ext = ".jpg"
+            elif "webp" in content_type:
+                ext = ".webp"
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_id = uuid.uuid4().hex[:8]
+            filename = f"{prefix}_{timestamp}_{unique_id}{ext}"
+            
+            relative_path = f"images/{filename}"
+            file_path = file_storage.base_dir / "images" / filename
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(file_path, "wb") as f:
+                f.write(response.content)
+            
+            return generate_signed_url(relative_path, expires_in_seconds=86400)
+    
     def _build_generate_data(self, prompt, size, n, negative_prompt, prompt_extend, watermark):
         """构建生成请求数据"""
         data = {
@@ -353,7 +393,7 @@ class QwenImageModel:
         prompt_extend: bool = True,
         watermark: bool = False
     ) -> List[str]:
-        """生成图像（异步）"""
+        """生成图像（异步）并保存到本地"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -364,7 +404,19 @@ class QwenImageModel:
             response = await client.post(self.base_url, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
-            return self._parse_image_urls(result)
+            remote_urls = self._parse_image_urls(result)
+            
+            local_paths = []
+            for url in remote_urls:
+                try:
+                    local_path = await self._download_and_save_image(url, prefix="generated")
+                    local_paths.append(local_path)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"保存图片失败: {e}, 使用远程URL")
+                    local_paths.append(url)
+            
+            return local_paths
     
     def edit_image(
         self,
@@ -500,7 +552,14 @@ class QwenImageModel:
             logger.info(f"[IMAGE_EDIT] API响应: {result}")
             
             urls = self._parse_image_urls(result)
-            return urls[0] if urls else ""
+            if urls:
+                try:
+                    local_path = await self._download_and_save_image(urls[0], prefix="edited")
+                    return local_path
+                except Exception as e:
+                    logger.warning(f"保存编辑图片失败: {e}, 使用远程URL")
+                    return urls[0]
+            return ""
 
 
 class QwenCoderModel(BaseSkillModel):

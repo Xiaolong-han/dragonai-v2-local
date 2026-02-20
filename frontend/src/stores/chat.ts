@@ -232,8 +232,18 @@ export const useChatStore = defineStore('chat', () => {
 
       if (response.images) {
         const urls = response.images || []
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+        
         const resultText = `已生成 ${urls.length} 张图片：\n\n` + 
-          urls.map((url: string) => `![生成的图片](${url})`).join('\n\n')
+          urls.map((url: string, idx: number) => {
+            let fullUrl = url
+            if (url.startsWith('/api/')) {
+              fullUrl = `${baseUrl}${url}`
+            } else if (!url.startsWith('http')) {
+              fullUrl = `${baseUrl}/api/v1/files/serve/${url}`
+            }
+            return `![生成的图片](${fullUrl})`
+          }).join('\n\n')
         
         const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
         if (msgIndex !== -1) {
@@ -306,8 +316,18 @@ export const useChatStore = defineStore('chat', () => {
 
       if (response.images) {
         const urls = response.images || []
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+        
         const resultText = `图像编辑完成：\n\n` + 
-          urls.map((url: string) => `![编辑后的图片](${url})`).join('\n\n')
+          urls.map((url: string, idx: number) => {
+            let fullUrl = url
+            if (url.startsWith('/api/')) {
+              fullUrl = `${baseUrl}${url}`
+            } else if (!url.startsWith('http')) {
+              fullUrl = `${baseUrl}/api/v1/files/serve/${url}`
+            }
+            return `![编辑后的图片](${fullUrl})`
+          }).join('\n\n')
         
         const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
         if (msgIndex !== -1) {

@@ -310,4 +310,57 @@ function handleRegenerate() {
 .message-actions :deep(.el-button:hover) {
   background: rgba(45, 125, 255, 0.1);
 }
+
+.message-text :deep(.image-container) {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 8px 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.message-text :deep(.image-container img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+}
+
+.message-text :deep(.image-overlay) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.message-text :deep(.image-container:hover .image-overlay) {
+  opacity: 1;
+}
+
+.message-text :deep(.download-btn) {
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #333;
+  transition: all 0.2s ease;
+}
+
+.message-text :deep(.download-btn:hover) {
+  background: #fff;
+  transform: scale(1.1);
+}
 </style>

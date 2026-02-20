@@ -68,11 +68,11 @@
             v-for="(url, idx) in result.images"
             :key="idx"
             class="image-item"
-            @click="previewImage(url)"
           >
-            <img :src="url" :alt="`生成的图像 ${(idx as number) + 1}`" />
+            <img :src="getImageUrl(url)" :alt="`生成的图像 ${(idx as number) + 1}`" @click="previewImage(url)" />
             <div class="image-overlay">
-              <el-icon><ZoomIn /></el-icon>
+              <el-icon @click="previewImage(url)"><ZoomIn /></el-icon>
+              <el-icon @click="downloadImage(url, idx as number)"><Download /></el-icon>
             </div>
           </div>
         </div>
@@ -87,7 +87,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Picture, Lightning, Star, ZoomIn } from '@element-plus/icons-vue'
+import { Picture, Lightning, Star, ZoomIn, Download } from '@element-plus/icons-vue'
 import { useSkillStore } from '@/stores/skill'
 
 const skillStore = useSkillStore()
@@ -98,6 +98,19 @@ const size = ref('1024*1024')
 const n = ref(1)
 const loading = ref(false)
 const result = ref<any>(null)
+
+const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
+function getImageUrl(path: string): string {
+  if (!path) return ''
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path
+  }
+  if (path.startsWith('/api/')) {
+    return `${baseUrl}${path}`
+  }
+  return `${baseUrl}/api/v1/files/serve/${path}`
+}
 
 async function generate() {
   if (!prompt.value.trim()) {
@@ -122,8 +135,27 @@ async function generate() {
 }
 
 function previewImage(url: string) {
-  // 实现图片预览
-  window.open(url, '_blank')
+  window.open(getImageUrl(url), '_blank')
+}
+
+async function downloadImage(url: string, index: number) {
+  try {
+    const imageUrl = getImageUrl(url)
+    const response = await fetch(imageUrl)
+    const blob = await response.blob()
+    const downloadUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = `generated_image_${(index as number) + 1}.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(downloadUrl)
+    ElMessage.success('图片下载成功')
+  } catch (error) {
+    console.error('Download failed:', error)
+    ElMessage.error('图片下载失败')
+  }
 }
 </script>
 

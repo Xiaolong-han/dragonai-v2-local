@@ -94,7 +94,7 @@
           <h3>编辑结果</h3>
           <div class="image-grid">
             <div v-for="(image, index) in images" :key="index" class="image-item">
-              <img :src="image" :alt="`编辑后的图像 ${index + 1}`" />
+              <img :src="getImageUrl(image)" :alt="`编辑后的图像 ${index + 1}`" />
               <div class="image-actions">
                 <el-button type="primary" size="small" @click="downloadImage(image, index)">
                   <el-icon><Download /></el-icon>
@@ -123,6 +123,19 @@ const isExpert = ref(false)
 const size = ref('1024*1024')
 const loading = ref(false)
 const images = ref<string[]>([])
+
+const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
+function getImageUrl(path: string): string {
+  if (!path) return ''
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path
+  }
+  if (path.startsWith('/api/')) {
+    return `${baseUrl}${path}`
+  }
+  return `${baseUrl}/api/v1/files/serve/${path}`
+}
 
 function triggerUpload() {
   fileInput.value?.click()
@@ -179,13 +192,24 @@ async function editImage() {
   }
 }
 
-function downloadImage(imageUrl: string, index: number) {
-  const link = document.createElement('a')
-  link.href = imageUrl
-  link.download = `edited-image-${index + 1}.png`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+async function downloadImage(imageUrl: string, index: number) {
+  try {
+    const fullUrl = getImageUrl(imageUrl)
+    const response = await fetch(fullUrl)
+    const blob = await response.blob()
+    const downloadUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = `edited-image-${index + 1}.png`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(downloadUrl)
+    ElMessage.success('图片下载成功')
+  } catch (error) {
+    console.error('Download failed:', error)
+    ElMessage.error('图片下载失败')
+  }
 }
 </script>
 

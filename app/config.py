@@ -35,8 +35,8 @@ class Settings(BaseSettings):
     log_dir: str = "./logs"
 
     # 模型配置 - 开发者可自定义模型映射
-    # 通用模型配置
-    model_general_fast: str = "qwen-flash" 
+    # 通用模型配置"qwen-flash-2025-07-28" 
+    model_general_fast: str = "qwen-turbo" 
     model_general_expert: str = "qwen3-max"
     
     # 视觉模型配置
@@ -57,28 +57,16 @@ class Settings(BaseSettings):
     # 翻译模型配置
     model_translation_fast: str = "qwen-mt-flash"
     model_translation_expert: str = "qwen-mt-plus"
+    
+    # Embedding模型配置
+    model_embedding: str = "text-embedding-v4"
 
     class Config:
         env_file = ".env"
         case_sensitive = False
 
 
-# 模型能力配置
-MODEL_CAPABILITIES = {
-    "qwen3-max": {"supports_thinking": True, "supports_streaming": True},
-    "qwen-plus": {"supports_thinking": True, "supports_streaming": True},
-    "qwen-flash": {"supports_thinking": False, "supports_streaming": True},
-    "qwen3-vl-plus": {"supports_thinking": False, "supports_streaming": True},
-    "qwen3-vl-flash": {"supports_thinking": False, "supports_streaming": True},
-    "qwen-vl-ocr": {"supports_thinking": False, "supports_streaming": True},
-    "z-image-turbo": {"supports_thinking": False, "supports_streaming": False},
-    "qwen-image": {"supports_thinking": False, "supports_streaming": False},
-    "qwen-image-plus": {"supports_thinking": False, "supports_streaming": False},
-    "qwen3-coder-flash": {"supports_thinking": False, "supports_streaming": True},
-    "qwen3-coder-plus": {"supports_thinking": True, "supports_streaming": True},
-    "qwen-mt-flash": {"supports_thinking": False, "supports_streaming": True},
-    "qwen-mt-plus": {"supports_thinking": False, "supports_streaming": True},
-}
+
 
 
 @lru_cache()

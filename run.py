@@ -18,6 +18,6 @@ if __name__ == "__main__":
         port=8000,
         loop="asyncio",
         reload=True, 
-        factory= True
-        # workers=1
+        factory= True,
+        workers=1
     )

@@ -5,7 +5,7 @@ from app.llm.model_factory import ModelFactory
 
 
 @tool
-async def generate_image(prompt: str, size: str = "1024*1024", n: int = 1) -> str:
+async def generate_image(prompt: str, size: str = "1664*928", n: int = 1) -> str:
     """
     根据文本描述生成图像。
 
@@ -14,8 +14,8 @@ async def generate_image(prompt: str, size: str = "1024*1024", n: int = 1) -> st
 
     Args:
         prompt: 图像的详细描述，越详细效果越好。可以描述场景、物体、风格、光线、颜色等。
-        size: 图像尺寸，可选 "1024*1024"(正方形), "1024*768"(横屏), "768*1024"(竖屏)
-        n: 生成图像数量，1-4之间
+        size: 图像尺寸，可选 "1664*928"(默认), "1024*1024", "1024*768", "768*1024"
+        n: 生成图像数量，1-4之间的整数，默认1
 
     Returns:
         生成图像的URL列表

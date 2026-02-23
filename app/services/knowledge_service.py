@@ -10,7 +10,7 @@ from app.config import settings
 from app.rag import (
     DocumentLoader,
     DocumentSplitter,
-    QwenEmbeddings,
+    ModelFactory,
     VectorStoreRetriever,
 )
 from app.storage.vector_store import vector_store_manager
@@ -26,7 +26,7 @@ class KnowledgeService:
         chunk_overlap: int = 200,
     ):
         self.collection_name = collection_name
-        self.embeddings = QwenEmbeddings()
+        self.embeddings = ModelFactory.get_embedding()
         self.document_loader = DocumentLoader()
         self.document_splitter = DocumentSplitter(
             chunk_size=chunk_size,

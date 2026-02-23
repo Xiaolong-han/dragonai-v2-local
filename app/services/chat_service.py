@@ -112,16 +112,37 @@ class ChatService:
             logger.info(f"[CHAT] Agent配置: {config}")
 
             # 4. 流式执行Agent (LangChain 1.0+ 方式)
-            # 使用 stream_mode="messages" 获取流式 token 输出
+            # 使用 stream_mode=["messages", "updates"] 获取流式 token 和完整的工具调用
             logger.info(f"[CHAT] 开始流式执行Agent")
-            async for message, metadata in agent.astream(
+            tool_call_count = 0
+            async for stream_mode, data in agent.astream(
                 {"messages": [{"role": "user", "content": full_context}]},
                 config,  # 传入config实现对话状态持久化
-                stream_mode="messages"
+                stream_mode=["messages", "updates"]
             ):
-                formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
-                if formatted:
-                    yield formatted
+                    
+                if stream_mode == "messages":
+                    # 流式 token 输出
+                    message, metadata = data
+                    formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
+                    if formatted:
+                        yield formatted
+                elif stream_mode == "updates":
+                    # 完整的步骤更新（包含工具调用结果）
+                    logger.info(f"[CHAT-DEBUG] updates data: {data}")
+                    for source, update in data.items():
+                        logger.info(f"[CHAT-DEBUG] source={source}, update keys={update.keys() if isinstance(update, dict) else type(update)}")
+                        if source in ("model", "tools"):
+                            formatted = ChatService._format_update({source: update}, enable_thinking)
+                            logger.info(f"[CHAT-DEBUG] formatted={formatted}")
+                            if formatted:
+                                if formatted.get("type") == "tool_call":
+                                    tool_call_count += 1
+                                    if tool_call_count > 5:
+                                        logger.error(f"[CHAT] 工具调用过多，强制停止")
+                                        break
+                                if formatted.get("type") not in ("unknown", None):
+                                    yield formatted
 
             logger.info(f"[CHAT] Agent流式执行完成")
         except Exception as e:
@@ -138,14 +159,22 @@ class ChatService:
                     )
                     config = AgentFactory.get_agent_config(str(conversation_id))
                     
-                    async for message, metadata in agent.astream(
+                    async for stream_mode, data in agent.astream(
                         {"messages": [{"role": "user", "content": full_context}]},
                         config,
-                        stream_mode="messages"
+                        stream_mode=["messages", "updates"]
                     ):
-                        formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
-                        if formatted:
-                            yield formatted
+                        if stream_mode == "messages":
+                            message, metadata = data
+                            formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
+                            if formatted:
+                                yield formatted
+                        elif stream_mode == "updates":
+                            for source, update in data.items():
+                                if source in ("model", "tools"):
+                                    formatted = ChatService._format_update({source: update}, enable_thinking)
+                                    if formatted and formatted.get("type") not in ("unknown", None):
+                                        yield formatted
                     logger.info(f"[CHAT] 重试执行成功")
                     return
                 except Exception as retry_error:
@@ -162,68 +191,74 @@ class ChatService:
         
         message: AIMessageChunk 或 ToolMessage
         metadata: 包含 langgraph_node 等信息
+        
+        注意：工具调用信息在 updates 模式下处理，这里只处理文本 token
         """
         from langchain_core.messages.ai import AIMessageChunk
         from langchain_core.messages.tool import ToolMessage
         
-        # 检查消息类型
         if isinstance(message, AIMessageChunk):
-            # AI 消息块（流式 token）
+            # 跳过工具调用 chunks，由 updates 模式处理
+            tool_call_chunks = getattr(message, 'tool_call_chunks', None)
+            if tool_call_chunks:
+                return None
+            
             content = getattr(message, 'content', "")
             if content:
                 return {
                     "type": "token",
                     "data": {"content": content}
                 }
+        
         elif isinstance(message, ToolMessage):
-            # 工具调用消息
-            tool_name = getattr(message, 'name', 'unknown')
-            return {
-                "type": "tool_call",
-                "data": {"name": tool_name}
-            }
+            # 工具执行结果，由 updates 模式处理
+            return None
         
         return None
 
     @staticmethod
     def _format_update(event: Dict, include_thinking: bool) -> Dict[str, Any]:
-        """格式化更新事件（stream_mode="updates"）"""
-        # event 格式: {"model": {"messages": [...]}} 或 {"tools": {"messages": [...]}}
+        """格式化更新事件（stream_mode="updates"）
+        
+        event 格式: {"model": {"messages": [...]}} 或 {"tools": {"messages": [...]}}
+        """
         for node_name, node_output in event.items():
             if node_name in ("model", "agent"):
-                # Agent/Model 节点输出，包含 messages
                 messages = node_output.get("messages", []) if isinstance(node_output, dict) else []
                 if messages:
                     last_message = messages[-1]
                     if hasattr(last_message, 'type'):
                         if last_message.type == "ai":
+                            # 检查是否有工具调用
+                            if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                                # 过滤空字符串
+                                tool_names = [tc.get('name', '') for tc in last_message.tool_calls]
+                                tool_names = [n for n in tool_names if n]
+                                if tool_names:
+                                    return {
+                                        "type": "tool_call",
+                                        "data": {"names": tool_names}
+                                    }
+                            # 普通文本内容
                             content = getattr(last_message, 'content', "")
-                            thinking_content = None
-                            if include_thinking:
-                                thinking_content = getattr(last_message, 'thinking_content', None)
-                            return {
-                                "type": "content",
-                                "data": {"content": content, "thinking_content": thinking_content}
-                            }
-                        elif last_message.type == "tool":
-                            return {
-                                "type": "tool_call",
-                                "data": {
-                                    "name": getattr(last_message, 'name', None),
-                                    "content": getattr(last_message, 'content', None)
+                            if content:
+                                return {
+                                    "type": "content",
+                                    "data": {"content": content}
                                 }
-                            }
+                            return None
             elif node_name == "tools":
-                # 工具节点输出
                 messages = node_output.get("messages", []) if isinstance(node_output, dict) else []
                 if messages:
                     last_message = messages[-1]
                     if hasattr(last_message, 'type') and last_message.type == "tool":
+                        tool_name = getattr(last_message, 'name', None)
+                        tool_content = getattr(last_message, 'content', None)
                         return {
                             "type": "tool_result",
                             "data": {
-                                "name": getattr(last_message, 'name', None),
-                                "content": getattr(last_message, 'content', None)
+                                "name": tool_name,
+                                "content": tool_content
                             }
                         }
         return {"type": "unknown", "data": event}
@@ -323,6 +358,7 @@ class ChatService:
         """使用Agent生成流式响应"""
         try:
             logger.info(f"[CHAT] 开始生成流式响应: conversation_id={conversation_id}")
+            has_token_output = False
             async for event in ChatService.process_message(
                 conversation_id=conversation_id,
                 content=content,
@@ -332,19 +368,22 @@ class ChatService:
             ):
                 if event["type"] == "token":
                     # 流式 token，直接输出
-                    content = event["data"]["content"]
-                    if content:
-                        yield content
+                    token_content = event["data"]["content"]
+                    if token_content:
+                        has_token_output = True
+                        yield token_content
                 elif event["type"] == "content":
-                    # 完整内容（备用）
-                    content = event["data"]["content"]
-                    if content:
-                        yield content
+                    # 完整内容（仅在没有 token 流时输出，避免重复）
+                    if not has_token_output:
+                        content_data = event["data"].get("content")
+                        if content_data:
+                            yield content_data
                 elif event["type"] == "tool_call":
-                    tool_name = event["data"].get("name", "unknown")
-                    yield f"\n[使用工具: {tool_name}]\n"
+                    # 过滤空字符串
+                    names = [n for n in event["data"].get("names", []) if n]
+                    if names:
+                        yield f"\n[使用工具: {', '.join(names)}]\n"
                 elif event["type"] == "tool_result":
-                    # 工具执行结果，不显示给用户
                     pass
         except Exception as e:
             logger.error(f"[CHAT] 生成流式响应时出错: {str(e)}", exc_info=True)

@@ -75,15 +75,19 @@ async def translate(
     """翻译接口"""
     try:
         model = ModelFactory.get_translation_model(is_plus=request.is_expert)
+        
+        source_text = request.source_lang if request.source_lang else "自动检测"
+        prompt = f"""你是一个专业的翻译助手。请准确翻译用户提供的文本，保持原意和语气。只输出翻译结果。
 
-        result = await model.atranslate(
-            text=request.text,
-            source_lang=request.source_lang,
-            target_lang=request.target_lang
-        )
+请将以下{source_text}文本翻译成{request.target_lang}，只输出翻译结果，不要添加解释：
+
+{request.text}"""
+        
+        messages = [{"role": "user", "content": prompt}]
+        result = await model.ainvoke(messages)
 
         return TranslationResponse(
-            text=result,
+            text=result.content,
             source_lang=request.source_lang,
             target_lang=request.target_lang,
             model_name="expert" if request.is_expert else "fast"
@@ -129,8 +133,7 @@ async def image_generation(
 
         urls = await model.agenerate(
             prompt=request.prompt,
-            size=request.size or "1024*1024",
-            n=request.n or 1
+            size=request.size or "1024*1024"
         )
 
         if not urls:

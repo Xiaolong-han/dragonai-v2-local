@@ -13,7 +13,7 @@ export interface ChatMessage {
   is_streaming?: boolean
 }
 
-export interface SkillOptions {
+export interface ToolOptions {
   targetLang?: string
   sourceLang?: string
   model?: string
@@ -45,31 +45,31 @@ export const useChatStore = defineStore('chat', () => {
     _sendMessageInternal(conversationId, content, images, null, null)
   }
 
-  function sendMessageWithSkill(
+  function sendMessageWithTool(
     conversationId: number,
     content: string,
-    skill: string,
-    options?: SkillOptions,
+    tool: string,
+    options?: ToolOptions,
     images?: string[]
   ) {
-    if (skill === 'translation') {
-      _sendTranslationSkill(conversationId, content, options)
-    } else if (skill === 'coding') {
-      _sendCodingSkill(conversationId, content, options)
-    } else if (skill === 'image_generation') {
-      _sendImageGenerationSkill(conversationId, content, options)
-    } else if (skill === 'image_editing') {
-      _sendImageEditingSkill(conversationId, content, images, options)
+    if (tool === 'translation') {
+      _sendTranslationTool(conversationId, content, options)
+    } else if (tool === 'coding') {
+      _sendCodingTool(conversationId, content, options)
+    } else if (tool === 'image_generation') {
+      _sendImageGenerationTool(conversationId, content, options)
+    } else if (tool === 'image_editing') {
+      _sendImageEditingTool(conversationId, content, images, options)
     } else {
-      _sendMessageInternal(conversationId, content, images, skill, options)
+      _sendMessageInternal(conversationId, content, images, tool, options)
     }
   }
 
   // 直接调用翻译专项API
-  async function _sendTranslationSkill(
+  async function _sendTranslationTool(
     conversationId: number,
     content: string,
-    options?: SkillOptions
+    options?: ToolOptions
   ) {
     sending.value = true
 
@@ -94,7 +94,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(assistantMessage)
 
     try {
-      const response = await request.post('/api/v1/skills/translation', {
+      const response = await request.post('/api/v1/tools/translation', {
         text: content,
         target_lang: options?.targetLang || 'zh',
         source_lang: options?.sourceLang,
@@ -131,10 +131,10 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 直接调用编程专项API
-  async function _sendCodingSkill(
+  async function _sendCodingTool(
     conversationId: number,
     content: string,
-    options?: SkillOptions
+    options?: ToolOptions
   ) {
     sending.value = true
 
@@ -159,7 +159,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(assistantMessage)
 
     try {
-      const response = await request.post('/api/v1/skills/coding', {
+      const response = await request.post('/api/v1/tools/coding', {
         prompt: content,
         language: options?.language || 'python',
         is_expert: false
@@ -195,10 +195,10 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 直接调用图像生成专项API
-  async function _sendImageGenerationSkill(
+  async function _sendImageGenerationTool(
     conversationId: number,
     content: string,
-    options?: SkillOptions
+    options?: ToolOptions
   ) {
     sending.value = true
 
@@ -223,7 +223,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(assistantMessage)
 
     try {
-      const response = await request.post('/api/v1/skills/image-generation', {
+      const response = await request.post('/api/v1/tools/image-generation', {
         prompt: content,
         size: options?.size || '1024*1024',
         n: options?.n || 1,
@@ -273,11 +273,11 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function _sendImageEditingSkill(
+  async function _sendImageEditingTool(
     conversationId: number,
     content: string,
     images: string[] | undefined,
-    options?: SkillOptions
+    options?: ToolOptions
   ) {
     if (!images || images.length === 0) {
       ElMessage.error('请先上传图片')
@@ -307,7 +307,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(assistantMessage)
 
     try {
-      const response = await request.post('/api/v1/skills/image-editing', {
+      const response = await request.post('/api/v1/tools/image-editing', {
         image_path: images[0],
         prompt: content,
         size: options?.size || '1024*1024',
@@ -361,8 +361,8 @@ export const useChatStore = defineStore('chat', () => {
     conversationId: number,
     content: string,
     images: string[] | undefined,
-    skill: string | null,
-    skillOptions: SkillOptions | null
+    tool: string | null,
+    toolOptions: ToolOptions | null
   ) {
     sending.value = true
 
@@ -397,9 +397,9 @@ export const useChatStore = defineStore('chat', () => {
       images: images || null
     }
 
-    if (skill) {
-      body.skill = skill
-      body.skill_options = skillOptions || {}
+    if (tool) {
+      body.tool = tool
+      body.tool_options = toolOptions || {}
     }
 
     const xhr = new XMLHttpRequest()
@@ -556,7 +556,7 @@ export const useChatStore = defineStore('chat', () => {
     sending,
     fetchConversationHistory,
     sendMessage,
-    sendMessageWithSkill,
+    sendMessageWithTool,
     regenerateMessage,
     clearMessages
   }

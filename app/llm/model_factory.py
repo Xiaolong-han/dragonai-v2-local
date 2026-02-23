@@ -13,8 +13,8 @@ from langchain_community.embeddings import DashScopeEmbeddings
 from app.config import settings
 
 
-class AsyncSkillModel:
-    """异步技能模型 - 用于直接技能触发的模型（视觉/编程/翻译等）"""
+class AsyncToolModel:
+    """异步工具模型 - 用于直接工具触发的模型（视觉/编程/翻译等）"""
     
     def __init__(
         self,
@@ -99,7 +99,7 @@ class ModelFactory:
         )
 
     @classmethod
-    def get_vision_model(cls, is_ocr: bool = False, **kwargs) -> AsyncSkillModel:
+    def get_vision_model(cls, is_ocr: bool = False, **kwargs) -> AsyncToolModel:
         """获取视觉模型
 
         Args:
@@ -109,7 +109,7 @@ class ModelFactory:
             settings.model_vision_ocr if is_ocr
             else settings.model_vision_general
         )
-        return AsyncSkillModel(
+        return AsyncToolModel(
             model_name=model_name,
             api_key=settings.qwen_api_key,
             **kwargs
@@ -149,7 +149,7 @@ class ModelFactory:
         )
 
     @classmethod
-    def get_coder_model(cls, is_plus: bool = False, **kwargs) -> AsyncSkillModel:
+    def get_coder_model(cls, is_plus: bool = False, **kwargs) -> AsyncToolModel:
         """获取编程模型
 
         Args:
@@ -159,14 +159,14 @@ class ModelFactory:
             settings.model_coder_expert if is_plus
             else settings.model_coder_fast
         )
-        return AsyncSkillModel(
+        return AsyncToolModel(
             model_name=model_name,
             api_key=settings.qwen_api_key,
             **kwargs
         )
 
     @classmethod
-    def get_translation_model(cls, is_plus: bool = False, **kwargs) -> AsyncSkillModel:
+    def get_translation_model(cls, is_plus: bool = False, **kwargs) -> AsyncToolModel:
         """获取翻译模型
 
         Args:
@@ -176,7 +176,7 @@ class ModelFactory:
             settings.model_translation_expert if is_plus
             else settings.model_translation_fast
         )
-        return AsyncSkillModel(
+        return AsyncToolModel(
             model_name=model_name,
             api_key=settings.qwen_api_key,
             **kwargs

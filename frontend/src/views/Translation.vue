@@ -182,7 +182,7 @@ async function translate() {
     if (sourceLang.value) {
       data.source_lang = sourceLang.value
     }
-    const response = await request.post('/api/v1/skills/translation', data)
+    const response = await request.post('/api/v1/tools/translation', data)
     result.value = response.text
     modelName.value = response.model_name
     ElMessage.success('翻译成功！')

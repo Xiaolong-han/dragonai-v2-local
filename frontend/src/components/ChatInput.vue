@@ -1,14 +1,14 @@
 <template>
   <div class="chat-input-wrapper">
-    <div class="chat-input-card" :class="{ 'skill-mode': activeSkill }">
-      <!-- 技能模式指示器 -->
-      <div v-if="activeSkill" class="skill-indicator">
-        <div class="skill-tag">
-          <el-icon :size="16"><component :is="activeSkill.icon" /></el-icon>
-          <span>{{ activeSkill.label }}</span>
-          <el-icon class="close-icon" :size="14" @click="clearSkill"><Close /></el-icon>
+    <div class="chat-input-card" :class="{ 'tool-mode': activeTool }">
+      <!-- 工具模式指示器 -->
+      <div v-if="activeTool" class="tool-indicator">
+        <div class="tool-tag">
+          <el-icon :size="16"><component :is="activeTool.icon" /></el-icon>
+          <span>{{ activeTool.label }}</span>
+          <el-icon class="close-icon" :size="14" @click="clearTool"><Close /></el-icon>
         </div>
-        <div v-if="activeSkill.name === 'translation'" class="skill-options">
+        <div v-if="activeTool.name === 'translation'" class="tool-options">
           <span>翻译为</span>
           <el-select v-model="targetLang" size="small" style="width: 100px">
             <el-option label="中文" value="zh" />
@@ -57,18 +57,18 @@
           class="message-textarea"
         />
         
-        <!-- 技能选择下拉菜单 -->
-        <div v-if="showSkillMenu" class="skill-menu">
-          <div class="skill-menu-header">选择技能</div>
+        <!-- 工具选择下拉菜单 -->
+        <div v-if="showToolMenu" class="tool-menu">
+          <div class="tool-menu-header">选择工具</div>
           <div
-            v-for="skill in skills"
-            :key="skill.name"
-            class="skill-menu-item"
-            :class="{ active: activeSkill?.name === skill.name }"
-            @click="selectSkill(skill)"
+            v-for="tool in tools"
+            :key="tool.name"
+            class="tool-menu-item"
+            :class="{ active: activeTool?.name === tool.name }"
+            @click="selectTool(tool)"
           >
-            <el-icon :size="18"><component :is="skill.icon" /></el-icon>
-            <span>{{ skill.label }}</span>
+            <el-icon :size="18"><component :is="tool.icon" /></el-icon>
+            <span>{{ tool.label }}</span>
           </div>
         </div>
       </div>
@@ -105,34 +105,34 @@
 
           <div class="divider"></div>
 
-          <!-- 技能按钮 -->
+          <!-- 工具按钮 -->
           <div
-            v-for="skill in visibleSkills"
-            :key="skill.name"
+            v-for="tool in visibleTools"
+            :key="tool.name"
             class="tool-item"
-            :class="{ active: activeSkill?.name === skill.name }"
-            @click="selectSkill(skill)"
-            :title="skill.label"
+            :class="{ active: activeTool?.name === tool.name }"
+            @click="selectTool(tool)"
+            :title="tool.label"
           >
-            <el-icon :size="18"><component :is="skill.icon" /></el-icon>
-            <span>{{ skill.label }}</span>
+            <el-icon :size="18"><component :is="tool.icon" /></el-icon>
+            <span>{{ tool.label }}</span>
           </div>
 
-          <!-- 更多技能 -->
-          <el-dropdown v-if="moreSkills.length > 0" trigger="click" @command="selectSkill">
-            <div class="tool-item" title="更多技能">
+          <!-- 更多工具 -->
+          <el-dropdown v-if="moreTools.length > 0" trigger="click" @command="selectTool">
+            <div class="tool-item" title="更多工具">
               <el-icon :size="18"><More /></el-icon>
               <span>更多</span>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item
-                  v-for="skill in moreSkills"
-                  :key="skill.name"
-                  :command="skill"
+                  v-for="tool in moreTools"
+                  :key="tool.name"
+                  :command="tool"
                 >
-                  <el-icon :size="16"><component :is="skill.icon" /></el-icon>
-                  <span>{{ skill.label }}</span>
+                  <el-icon :size="16"><component :is="tool.icon" /></el-icon>
+                  <span>{{ tool.label }}</span>
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -185,7 +185,7 @@ interface UploadedFile {
   url?: string
 }
 
-interface Skill {
+interface Tool {
   name: string
   label: string
   icon: any
@@ -198,7 +198,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'send', value: string, files: string[], skill?: string, options?: any): void
+  (e: 'send', value: string, files: string[], tool?: string, options?: any): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -208,8 +208,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-// 技能列表（根据后端实际支持的功能）
-const skills: Skill[] = [
+// 工具列表（根据后端实际支持的功能）
+const tools: Tool[] = [
   {
     name: 'image_generation',
     label: '图像生成',
@@ -236,26 +236,26 @@ const skills: Skill[] = [
   }
 ]
 
-// 可见技能（显示在工具栏）
-const visibleSkills = computed(() => skills.slice(0, 3))
-// 更多技能（在 dropdown 中）
-const moreSkills = computed(() => skills.slice(3))
+// 可见工具（显示在工具栏）
+const visibleTools = computed(() => tools.slice(0, 3))
+// 更多工具（在 dropdown 中）
+const moreTools = computed(() => tools.slice(3))
 
 const inputValue = ref<string>('')
 const uploadedFiles = ref<UploadedFile[]>([])
 const imageUploadRef = ref()
 const fileUploadRef = ref()
 const inputRef = ref()
-const activeSkill = ref<Skill | null>(null)
-const showSkillMenu = ref(false)
+const activeTool = ref<Tool | null>(null)
+const showToolMenu = ref(false)
 const targetLang = ref('zh')
 
 // 动态占位符
 const currentPlaceholder = computed(() => {
-  if (activeSkill.value) {
-    return activeSkill.value.placeholder
+  if (activeTool.value) {
+    return activeTool.value.placeholder
   }
-  return '发消息或输入 "/" 选择技能'
+  return '发消息或输入 "/" 选择工具'
 })
 
 function generateId(): string {
@@ -274,16 +274,16 @@ function formatFileSize(bytes: number): string {
 function handleInput(value: string) {
   // 检测是否输入了 "/"
   if (value === '/') {
-    showSkillMenu.value = true
+    showToolMenu.value = true
   } else if (!value.startsWith('/')) {
-    showSkillMenu.value = false
+    showToolMenu.value = false
   }
 }
 
-// 选择技能
-function selectSkill(skill: Skill) {
-  activeSkill.value = skill
-  showSkillMenu.value = false
+// 选择工具
+function selectTool(tool: Tool) {
+  activeTool.value = tool
+  showToolMenu.value = false
   
   // 清除输入框中的 "/"
   if (inputValue.value === '/') {
@@ -296,9 +296,9 @@ function selectSkill(skill: Skill) {
   })
 }
 
-// 清除技能
-function clearSkill() {
-  activeSkill.value = null
+// 清除工具
+function clearTool() {
+  activeTool.value = null
   targetLang.value = 'zh'
 }
 
@@ -374,7 +374,7 @@ async function handleSend() {
   if ((value || uploadedFiles.value.length > 0) && !props.loading && !props.disabled) {
     const options: any = {}
     
-    if (activeSkill.value?.name === 'translation') {
+    if (activeTool.value?.name === 'translation') {
       options.targetLang = targetLang.value
     }
     
@@ -403,7 +403,7 @@ async function handleSend() {
     emit('send', 
       value, 
       uploadedUrls, 
-      activeSkill.value?.name,
+      activeTool.value?.name,
       Object.keys(options).length > 0 ? options : undefined
     )
     
@@ -423,9 +423,9 @@ function handleKeydown(event: KeyboardEvent) {
     handleSend()
   }
   
-  // ESC 关闭技能菜单
+  // ESC 关闭工具菜单
   if (event.key === 'Escape') {
-    showSkillMenu.value = false
+    showToolMenu.value = false
   }
 }
 </script>
@@ -451,13 +451,13 @@ function handleKeydown(event: KeyboardEvent) {
   box-shadow: 0 2px 16px rgba(64, 158, 255, 0.15);
 }
 
-.chat-input-card.skill-mode {
+.chat-input-card.tool-mode {
   border-color: #409eff;
   background: linear-gradient(to bottom, #f0f9ff 0%, #ffffff 100%);
 }
 
-/* 技能指示器 */
-.skill-indicator {
+/* 工具指示器 */
+.tool-indicator {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -465,7 +465,7 @@ function handleKeydown(event: KeyboardEvent) {
   flex-wrap: wrap;
 }
 
-.skill-tag {
+.tool-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -478,18 +478,18 @@ function handleKeydown(event: KeyboardEvent) {
   font-weight: 500;
 }
 
-.skill-tag .close-icon {
+.tool-tag .close-icon {
   cursor: pointer;
   margin-left: 4px;
   opacity: 0.7;
   transition: opacity 0.2s;
 }
 
-.skill-tag .close-icon:hover {
+.tool-tag .close-icon:hover {
   opacity: 1;
 }
 
-.skill-options {
+.tool-options {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -571,8 +571,8 @@ function handleKeydown(event: KeyboardEvent) {
   color: #a8abb2;
 }
 
-/* 技能选择菜单 */
-.skill-menu {
+/* 工具选择菜单 */
+.tool-menu {
   position: absolute;
   bottom: 100%;
   left: 16px;
@@ -587,7 +587,7 @@ function handleKeydown(event: KeyboardEvent) {
   z-index: 1000;
 }
 
-.skill-menu-header {
+.tool-menu-header {
   padding: 12px 16px;
   font-size: 13px;
   color: #909399;
@@ -595,7 +595,7 @@ function handleKeydown(event: KeyboardEvent) {
   font-weight: 500;
 }
 
-.skill-menu-item {
+.tool-menu-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -606,11 +606,11 @@ function handleKeydown(event: KeyboardEvent) {
   transition: all 0.2s;
 }
 
-.skill-menu-item:hover {
+.tool-menu-item:hover {
   background: #f5f7fa;
 }
 
-.skill-menu-item.active {
+.tool-menu-item.active {
   background: #ecf5ff;
   color: #409eff;
 }
@@ -680,15 +680,15 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 /* 滚动条样式 */
-.skill-menu::-webkit-scrollbar {
+.tool-menu::-webkit-scrollbar {
   width: 6px;
 }
 
-.skill-menu::-webkit-scrollbar-track {
+.tool-menu::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.skill-menu::-webkit-scrollbar-thumb {
+.tool-menu::-webkit-scrollbar-thumb {
   background: #c0c4cc;
   border-radius: 3px;
 }

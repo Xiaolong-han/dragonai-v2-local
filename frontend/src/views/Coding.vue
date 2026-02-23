@@ -148,7 +148,7 @@ async function generateCode() {
     if (maxTokens.value) {
       data.max_tokens = maxTokens.value
     }
-    const response = await request.post('/api/v1/skills/coding', data)
+    const response = await request.post('/api/v1/tools/coding', data)
     result.value = response
     ElMessage.success('代码生成成功！')
   } catch (error) {

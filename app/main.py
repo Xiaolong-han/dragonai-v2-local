@@ -13,7 +13,7 @@ from app.core.redis import redis_client
 from app.core.cache_warmup import cache_warmup
 from app.core.exceptions import DragonAIException
 from app.agents.agent_factory import AgentFactory
-from app.api.v1 import auth, conversations, files, knowledge, skills, models, chat
+from app.api.v1 import auth, conversations, files, knowledge, tools, models, chat
 
 
 def setup_logging():
@@ -110,7 +110,7 @@ def create_app():
     app.include_router(conversations.router, prefix="/api/v1")
     app.include_router(files.router, prefix="/api/v1")
     app.include_router(knowledge.router, prefix="/api/v1")
-    app.include_router(skills.router, prefix="/api/v1")
+    app.include_router(tools.router, prefix="/api/v1")
     app.include_router(models.router, prefix="/api/v1")
     app.include_router(chat.router, prefix="/api/v1")
 

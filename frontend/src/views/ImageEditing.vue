@@ -176,7 +176,7 @@ async function editImage() {
 
     const relativePath = (uploadResponse as any)[0].relative_path
 
-    const data = await request.post('/api/v1/skills/image-editing', {
+    const data = await request.post('/api/v1/tools/image-editing', {
       image_path: relativePath,
       prompt: prompt.value,
       is_expert: isExpert.value,

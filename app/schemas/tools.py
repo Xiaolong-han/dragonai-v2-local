@@ -65,13 +65,12 @@ class TranslationResponse(BaseModel):
     model_name: str = Field(..., description="使用的模型名称")
 
 
-class SkillResponse(BaseModel):
-    """技能信息响应"""
-    name: str = Field(..., description="技能名称")
-    description: str = Field(..., description="技能简短描述")
+class ToolResponse(BaseModel):
+    """工具信息响应"""
+    name: str = Field(..., description="工具名称")
+    description: str = Field(..., description="工具简短描述")
 
 
-class SkillDetailResponse(SkillResponse):
-    """技能详情响应"""
-    content: str = Field(..., description="技能详细内容")
-
+class ToolDetailResponse(ToolResponse):
+    """工具详情响应"""
+    content: str = Field(..., description="工具详细内容")

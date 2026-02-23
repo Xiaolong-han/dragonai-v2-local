@@ -1,5 +1,5 @@
 
-from app.schemas import skills
+from app.schemas import tools
 
-__all__ = ["skills"]
+__all__ = ["tools"]
 

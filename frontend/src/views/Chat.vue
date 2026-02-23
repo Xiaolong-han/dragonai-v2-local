@@ -96,13 +96,13 @@ watch(
   }
 )
 
-function handleSendMessage(content: string, files: any[], skill?: string, options?: any) {
+function handleSendMessage(content: string, files: any[], tool?: string, options?: any) {
   if (!currentConversationId.value) return
   
   const imageUrls = files.filter((url): url is string => typeof url === 'string')
   
-  if (skill) {
-    chatStore.sendMessageWithSkill(currentConversationId.value, content, skill, options, imageUrls)
+  if (tool) {
+    chatStore.sendMessageWithTool(currentConversationId.value, content, tool, options, imageUrls)
   } else {
     chatStore.sendMessage(currentConversationId.value, content, imageUrls)
   }

@@ -1,11 +1,11 @@
 <template>
-  <div class="skill-page">
-    <div class="skill-header">
+  <div class="tool-page">
+    <div class="tool-header">
       <h2>图像生成</h2>
-      <p class="skill-desc">使用AI生成高质量图像，支持多种风格和尺寸</p>
+      <p class="tool-desc">使用AI生成高质量图像，支持多种风格和尺寸</p>
     </div>
 
-    <div class="skill-content">
+    <div class="tool-content">
       <!-- 模型选择 -->
       <div class="model-selector-wrapper">
         <span class="label">模型选择:</span>
@@ -88,9 +88,9 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Picture, Lightning, Star, ZoomIn, Download } from '@element-plus/icons-vue'
-import { useSkillStore } from '@/stores/skill'
+import { useToolStore } from '@/stores/tool'
 
-const skillStore = useSkillStore()
+const toolStore = useToolStore()
 
 const modelMode = ref<'fast' | 'expert'>('fast')
 const prompt = ref('')
@@ -120,7 +120,7 @@ async function generate() {
 
   loading.value = true
   try {
-    result.value = await skillStore.directImageGenerate({
+    result.value = await toolStore.directImageGenerate({
       prompt: prompt.value,
       size: size.value,
       n: n.value,
@@ -160,30 +160,30 @@ async function downloadImage(url: string, index: number) {
 </script>
 
 <style scoped>
-.skill-page {
+.tool-page {
   max-width: 900px;
   margin: 0 auto;
   padding: 24px;
 }
 
-.skill-header {
+.tool-header {
   text-align: center;
   margin-bottom: 32px;
 }
 
-.skill-header h2 {
+.tool-header h2 {
   font-size: 28px;
   font-weight: 600;
   color: #303133;
   margin-bottom: 8px;
 }
 
-.skill-desc {
+.tool-desc {
   color: #909399;
   font-size: 14px;
 }
 
-.skill-content {
+.tool-content {
   background: #fff;
   border-radius: 12px;
   padding: 24px;

@@ -1,23 +1,23 @@
 <template>
-  <div class="skill-list">
-    <div class="skill-header">
-      <h3>AI 技能</h3>
+  <div class="tool-list">
+    <div class="tool-header">
+      <h3>AI 工具</h3>
     </div>
-    <div class="skill-grid">
+    <div class="tool-grid">
       <div
-        v-for="skill in skills"
-        :key="skill.name"
-        class="skill-card"
-        @click="handleSkillClick(skill)"
+        v-for="tool in tools"
+        :key="tool.name"
+        class="tool-card"
+        @click="handleToolClick(tool)"
       >
-        <div class="skill-icon">
+        <div class="tool-icon">
           <el-icon :size="32">
-            <component :is="getSkillIcon(skill.name)" />
+            <component :is="getToolIcon(tool.name)" />
           </el-icon>
         </div>
-        <div class="skill-info">
-          <h4>{{ skill.name }}</h4>
-          <p>{{ skill.description }}</p>
+        <div class="tool-info">
+          <h4>{{ tool.name }}</h4>
+          <p>{{ tool.description }}</p>
         </div>
       </div>
     </div>
@@ -38,80 +38,80 @@ import {
 } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
-interface Skill {
+interface Tool {
   name: string
   description: string
 }
 
 const router = useRouter()
-const skills = ref<Skill[]>([])
+const tools = ref<Tool[]>([])
 const loading = ref(false)
 
-const skillRoutes: Record<string, string> = {
+const toolRoutes: Record<string, string> = {
   '图像生成': '/image-generation',
   '图像编辑': '/image-editing',
   '编程': '/coding',
   '翻译': '/translation'
 }
 
-const skillIcons: Record<string, any> = {
+const toolIcons: Record<string, any> = {
   '图像生成': Picture,
   '图像编辑': Edit,
   '编程': Operation,
   '翻译': Guide
 }
 
-function getSkillIcon(name: string) {
-  return skillIcons[name] || Document
+function getToolIcon(name: string) {
+  return toolIcons[name] || Document
 }
 
-async function fetchSkills() {
+async function fetchTools() {
   loading.value = true
   try {
-    const data = await request.get('/api/v1/skills')
-    skills.value = data as Skill[]
+    const data = await request.get('/api/v1/tools')
+    tools.value = data as Tool[]
   } catch (error) {
-    console.error('Failed to fetch skills:', error)
+    console.error('Failed to fetch tools:', error)
   } finally {
     loading.value = false
   }
 }
 
-function handleSkillClick(skill: Skill) {
-  const route = skillRoutes[skill.name]
+function handleToolClick(tool: Tool) {
+  const route = toolRoutes[tool.name]
   if (route) {
     router.push(route)
   }
 }
 
 onMounted(() => {
-  fetchSkills()
+  fetchTools()
 })
 </script>
 
 <style scoped>
-.skill-list {
+.tool-list {
   padding: 20px;
 }
 
-.skill-header {
+.tool-header {
   margin-bottom: 20px;
 }
 
-.skill-header h3 {
+.tool-header h3 {
   font-size: 18px;
   font-weight: 600;
   color: #303133;
   margin: 0;
 }
 
-.skill-grid {
+.tool-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 
-.skill-card {
+.tool-card {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -123,13 +123,13 @@ onMounted(() => {
   transition: all 0.2s;
 }
 
-.skill-card:hover {
+.tool-card:hover {
   border-color: #409eff;
   box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
   transform: translateY(-2px);
 }
 
-.skill-icon {
+.tool-icon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -141,19 +141,19 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.skill-info {
+.tool-info {
   flex: 1;
   min-width: 0;
 }
 
-.skill-info h4 {
+.tool-info h4 {
   font-size: 16px;
   font-weight: 600;
   color: #303133;
   margin: 0 0 4px 0;
 }
 
-.skill-info p {
+.tool-info p {
   font-size: 13px;
   color: #909399;
   margin: 0;

@@ -1,12 +1,12 @@
-"""技能API - 包含技能元数据管理和专项技能直接触发
+"""工具API - 包含工具元数据管理和专项工具直接触发
 
 路由说明：
-- GET /skills - 获取所有技能列表（元数据）
-- GET /skills/{skill_name} - 获取技能详情（元数据）
-- POST /skills/translation - 翻译
-- POST /skills/coding - 编程协助
-- POST /skills/image-generation - 图像生成
-- POST /skills/image-editing - 图像编辑
+- GET /tools - 获取所有工具列表（元数据）
+- GET /tools/{tool_name} - 获取工具详情（元数据）
+- POST /tools/translation - 翻译
+- POST /tools/coding - 编程协助
+- POST /tools/image-generation - 图像生成
+- POST /tools/image-editing - 图像编辑
 
 注意：
 - 如需Agent智能识别意图并调用工具，请使用 POST /api/v1/chat/send
@@ -23,9 +23,9 @@ from app.tools import ALL_TOOLS
 from app.llm.model_factory import ModelFactory
 from app.core.dependencies import get_current_active_user
 from app.models.user import User
-from app.schemas.skills import (
-    SkillResponse, 
-    SkillDetailResponse,
+from app.schemas.tools import (
+    ToolResponse, 
+    ToolDetailResponse,
     TranslationRequest,
     TranslationResponse,
     CodingRequest,
@@ -36,12 +36,12 @@ from app.schemas.skills import (
     ImageEditingResponse
 )
 
-router = APIRouter(prefix="/skills", tags=["技能"])
+router = APIRouter(prefix="/tools", tags=["工具"])
 
 
-@router.get("", response_model=List[SkillResponse])
-async def get_all_skills():
-    """获取所有可用技能列表"""
+@router.get("", response_model=List[ToolResponse])
+async def get_all_tools():
+    """获取所有可用工具列表"""
     return [
         {
             "name": tool.name,
@@ -51,19 +51,19 @@ async def get_all_skills():
     ]
 
 
-@router.get("/{skill_name}", response_model=SkillDetailResponse)
-async def get_skill_detail(skill_name: str):
-    """获取技能详情"""
+@router.get("/{tool_name}", response_model=ToolDetailResponse)
+async def get_tool_detail(tool_name: str):
+    """获取工具详情"""
     for tool in ALL_TOOLS:
-        if tool.name == skill_name:
+        if tool.name == tool_name:
             return {
                 "name": tool.name,
                 "description": tool.description or "",
-                "content": f"这是一个Agent工具，可以通过主聊天调用或在专项技能页面直接使用。"
+                "content": f"这是一个Agent工具，可以通过主聊天调用或在专项工具页面直接使用。"
             }
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Skill '{skill_name}' not found"
+        detail=f"Tool '{tool_name}' not found"
     )
 
 

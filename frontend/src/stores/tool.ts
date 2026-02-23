@@ -51,21 +51,21 @@ export interface TranslateResponse {
   model_name: string
 }
 
-export const useSkillStore = defineStore('skill', () => {
+export const useToolStore = defineStore('tool', () => {
   async function directImageGenerate(params: ImageGenerateParams): Promise<ImageGenerateResponse> {
-    return await request.post('/api/v1/skills/image-generation', params)
+    return await request.post('/api/v1/tools/image-generation', params)
   }
 
   async function directImageEdit(params: ImageEditParams): Promise<ImageEditResponse> {
-    return await request.post('/api/v1/skills/image-editing', params)
+    return await request.post('/api/v1/tools/image-editing', params)
   }
 
   async function directCodeAssist(params: CodeAssistParams): Promise<CodeAssistResponse> {
-    return await request.post('/api/v1/skills/coding', params)
+    return await request.post('/api/v1/tools/coding', params)
   }
 
   async function directTranslate(params: TranslateParams): Promise<TranslateResponse> {
-    return await request.post('/api/v1/skills/translation', params)
+    return await request.post('/api/v1/tools/translation', params)
   }
 
   return {

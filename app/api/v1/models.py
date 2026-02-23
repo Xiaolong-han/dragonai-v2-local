@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter
 
 from app.config import settings
-from app.schemas.models import ChatModelResponse, SkillModelResponse
+from app.schemas.models import ChatModelResponse, ToolModelResponse
 
 
 router = APIRouter(prefix="/models", tags=["模型"])
@@ -25,33 +25,33 @@ async def get_chat_models():
     return models
 
 
-@router.get("/skills", response_model=List[SkillModelResponse])
-async def get_skill_models():
-    """获取专项技能模型列表"""
-    skill_models = [
-        SkillModelResponse(
-            skill_type="coder",
-            display_name="编程技能",
+@router.get("/tools", response_model=List[ToolModelResponse])
+async def get_tool_models():
+    """获取专项工具模型列表"""
+    tool_models = [
+        ToolModelResponse(
+            tool_type="coder",
+            display_name="编程工具",
             fast_model=settings.model_coder_fast,
             expert_model=settings.model_coder_expert
         ),
-        SkillModelResponse(
-            skill_type="translation",
-            display_name="翻译技能",
+        ToolModelResponse(
+            tool_type="translation",
+            display_name="翻译工具",
             fast_model=settings.model_translation_fast,
             expert_model=settings.model_translation_expert
         ),
-        SkillModelResponse(
-            skill_type="image",
+        ToolModelResponse(
+            tool_type="image",
             display_name="图像生成",
             fast_model=settings.model_image_fast,
             expert_model=settings.model_image_expert
         ),
-        SkillModelResponse(
-            skill_type="vision",
+        ToolModelResponse(
+            tool_type="vision",
             display_name="视觉模型",
             fast_model=settings.model_vision_ocr,
             expert_model=settings.model_vision_general
         )
     ]
-    return skill_models
+    return tool_models

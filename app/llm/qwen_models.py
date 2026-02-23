@@ -4,7 +4,6 @@
 仅支持异步调用
 """
 
-import base64
 import httpx
 from typing import List, Optional
 
@@ -210,48 +209,9 @@ class QwenImageModel:
             return local_paths
     
     async def _prepare_image_content(self, image_source: str) -> dict:
-        """准备图片内容，支持多种格式
-        
-        支持：
-        1. HTTP/HTTPS URL
-        2. Base64 数据URI
-        3. 本地相对路径（通过file_storage）
-        4. 本地绝对路径
-        """
-        # 1. 检查是否为URL
-        if image_source.startswith(('http://', 'https://')):
-            return {"image": image_source}
-        
-        # 2. 检查是否为Base64数据URI
-        if image_source.startswith('data:image'):
-            return {"image": image_source}
-        
-        # 3. 检查是否为本地相对路径（通过file_storage）
-        from app.storage import file_storage
-        
-        file_path = file_storage.get_file_path(image_source)
-        if file_path and file_path.exists():
-            return self._encode_local_file(file_path)
-        # 4. 检查是否为本地绝对路径
-        from pathlib import Path
-        abs_path = Path(image_source)
-        if abs_path.exists():
-            return self._encode_local_file(abs_path)
-        
-        return {"image": image_source}
-    
-    def _encode_local_file(self, file_path) -> dict:
-        """将本地文件编码为Base64"""
-        import mimetypes
-        
-        mime_type, _ = mimetypes.guess_type(str(file_path))
-        if not mime_type:
-            mime_type = "image/jpeg"
-        
-        with open(file_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode("utf-8")
-        
-        return {"image": f"data:{mime_type};base64,{image_data}"}
+        """准备图片内容，支持多种格式"""
+        from app.utils.image_utils import build_qwen_image_content
+        return build_qwen_image_content(image_source)
 
     async def aedit_image(
         self,
@@ -274,7 +234,6 @@ class QwenImageModel:
         
         image_content = await self._prepare_image_content(image_url)
         logger.info(f"[IMAGE_EDIT] 准备图片内容完成, model={self.model_name}")
-        print(f"[IMAGE_EDIT] 图片内容的前100个字符: {image_content['image'][:100]}")
         
         data = self._build_edit_data(image_content, prompt, size, n, negative_prompt, prompt_extend, watermark)
         

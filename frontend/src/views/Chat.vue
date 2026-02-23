@@ -96,15 +96,15 @@ watch(
   }
 )
 
-function handleSendMessage(content: string, files: any[], tool?: string, options?: any) {
+function handleSendMessage(content: string, files: any[], tool?: string, options?: any, settings?: { isExpert: boolean; enableThinking: boolean }) {
   if (!currentConversationId.value) return
   
   const imageUrls = files.filter((url): url is string => typeof url === 'string')
   
   if (tool) {
-    chatStore.sendMessageWithTool(currentConversationId.value, content, tool, options, imageUrls)
+    chatStore.sendMessageWithTool(currentConversationId.value, content, tool, options, imageUrls, settings)
   } else {
-    chatStore.sendMessage(currentConversationId.value, content, imageUrls)
+    chatStore.sendMessage(currentConversationId.value, content, imageUrls, settings)
   }
 }
 

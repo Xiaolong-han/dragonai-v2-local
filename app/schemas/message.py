@@ -47,6 +47,7 @@ class ChatRequest(BaseModel):
     content: str
     model_type: Optional[str] = Field("general", description="模型类型: general/vision")
     is_expert: Optional[bool] = Field(False, description="是否使用专家模型")
+    enable_thinking: Optional[bool] = Field(False, description="是否启用深度思考模式")
     images: Optional[List[str]] = Field(None, description="图片URL列表（用于多模态输入）")
     stream: Optional[bool] = Field(True, description="是否使用流式响应")
 

@@ -76,6 +76,39 @@
       <!-- 底部工具栏 -->
       <div class="input-toolbar">
         <div class="toolbar-left">
+          <!-- 模型选择按钮 -->
+          <el-dropdown trigger="click" @command="selectModel">
+            <div class="tool-item model-select" :class="{ 'is-expert': isExpert }" title="选择模型">
+              <el-icon :size="18"><Cpu /></el-icon>
+              <span>{{ isExpert ? '专家模型' : '快速模型' }}</span>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="fast" :class="{ 'is-active': !isExpert }">
+                  <el-icon :size="16"><Promotion /></el-icon>
+                  <span>快速模型</span>
+                </el-dropdown-item>
+                <el-dropdown-item command="expert" :class="{ 'is-active': isExpert }">
+                  <el-icon :size="16"><Medal /></el-icon>
+                  <span>专家模型</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <!-- 深度思考按钮 -->
+          <div 
+            class="tool-item thinking-toggle" 
+            :class="{ active: enableThinking }" 
+            :title="enableThinking ? '关闭深度思考' : '开启深度思考'"
+            @click="toggleThinking"
+          >
+            <el-icon :size="18"><MagicStick /></el-icon>
+            <span>深度思考</span>
+          </div>
+
+          <div class="divider"></div>
+
           <!-- 上传按钮 -->
           <el-upload
             ref="imageUploadRef"
@@ -170,7 +203,8 @@ import {
   Edit,
   Cpu,
   Guide,
-  MagicStick
+  MagicStick,
+  Medal
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
@@ -198,7 +232,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'send', value: string, files: string[], tool?: string, options?: any): void
+  (e: 'send', value: string, files: string[], tool?: string, options?: any, settings?: { isExpert: boolean; enableThinking: boolean }): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -207,6 +241,9 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+
+const isExpert = ref(false)
+const enableThinking = ref(false)
 
 // 工具列表（根据后端实际支持的功能）
 const tools: Tool[] = [
@@ -300,6 +337,16 @@ function selectTool(tool: Tool) {
 function clearTool() {
   activeTool.value = null
   targetLang.value = 'zh'
+}
+
+// 选择模型
+function selectModel(model: string) {
+  isExpert.value = model === 'expert'
+}
+
+// 切换深度思考
+function toggleThinking() {
+  enableThinking.value = !enableThinking.value
 }
 
 function handleBeforeUploadImage(file: File): boolean {
@@ -404,7 +451,8 @@ async function handleSend() {
       value, 
       uploadedUrls, 
       activeTool.value?.name,
-      Object.keys(options).length > 0 ? options : undefined
+      Object.keys(options).length > 0 ? options : undefined,
+      { isExpert: isExpert.value, enableThinking: enableThinking.value }
     )
     
     inputValue.value = ''
@@ -655,6 +703,31 @@ function handleKeydown(event: KeyboardEvent) {
 .tool-item.active {
   background: #ecf5ff;
   color: #409eff;
+}
+
+.tool-item.model-select.is-expert {
+  background: #fef0f0;
+  color: #f56c6c;
+  border: 1px solid #fbc4c4;
+}
+
+.tool-item.thinking-toggle.active {
+  background: #f0f9eb;
+  color: #67c23a;
+  border: 1px solid #c2e7b0;
+}
+
+.tool-item.model-select:hover,
+.tool-item.thinking-toggle:hover {
+  background: #f5f7fa;
+}
+
+.tool-item.model-select.is-expert:hover {
+  background: #fef0f0;
+}
+
+.tool-item.thinking-toggle.active:hover {
+  background: #f0f9eb;
 }
 
 .upload-btn {

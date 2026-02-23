@@ -6,6 +6,21 @@
     </div>
     <div class="message-content">
       <div class="message-role">{{ message.role === 'user' ? '用户' : '助手' }}</div>
+      
+      <!-- 深度思考内容区域 -->
+      <div v-if="message.thinking_content" class="thinking-section">
+        <div class="thinking-header" @click="toggleThinking">
+          <el-icon :size="14"><Cpu /></el-icon>
+          <span>深度思考</span>
+          <el-icon :size="14" class="toggle-icon" :class="{ expanded: message.is_thinking_expanded }">
+            <ArrowDown />
+          </el-icon>
+        </div>
+        <div class="thinking-content" v-show="message.is_thinking_expanded">
+          <div class="thinking-text">{{ message.thinking_content }}</div>
+        </div>
+      </div>
+      
       <div class="message-text" v-html="formattedContent"></div>
       <div class="message-footer">
         <div class="message-time">{{ formatTime(message.created_at) }}</div>
@@ -29,7 +44,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { User, ChatDotRound, DocumentCopy, Refresh } from '@element-plus/icons-vue'
+import { User, ChatDotRound, DocumentCopy, Refresh, Cpu, ArrowDown } from '@element-plus/icons-vue'
 import { renderMarkdown } from '@/utils/markdown'
 import type { ChatMessage } from '@/stores/chat'
 
@@ -43,6 +58,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   copy: []
   regenerate: []
+  toggleThinking: []
 }>()
 
 const formattedContent = computed(() => {
@@ -67,6 +83,10 @@ async function handleCopy() {
 
 function handleRegenerate() {
   emit('regenerate')
+}
+
+function toggleThinking() {
+  emit('toggleThinking')
 }
 </script>
 
@@ -362,5 +382,73 @@ function handleRegenerate() {
 .message-text :deep(.download-btn:hover) {
   background: #fff;
   transform: scale(1.1);
+}
+
+.thinking-section {
+  margin-bottom: 12px;
+  border: 1px solid #e6a23c;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #fdf6ec 0%, #fff7e6 100%);
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fdf6ec;
+  cursor: pointer;
+  font-size: 13px;
+  color: #e6a23c;
+  font-weight: 500;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.thinking-header:hover {
+  background: #faecd8;
+}
+
+.thinking-header .toggle-icon {
+  margin-left: auto;
+  transition: transform 0.3s ease;
+}
+
+.thinking-header .toggle-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.thinking-content {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  border-top: 1px solid #f5dab1;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.thinking-text {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #606266;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.thinking-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.thinking-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thinking-content::-webkit-scrollbar-thumb {
+  background: #e6a23c;
+  border-radius: 2px;
+}
+
+.thinking-content::-webkit-scrollbar-thumb:hover {
+  background: #cf9236;
 }
 </style>

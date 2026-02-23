@@ -1,7 +1,7 @@
 
 import logging
 import json
-from typing import List, Optional, AsyncGenerator, Dict, Any
+from typing import List, Optional, AsyncGenerator, Dict, Any, Union
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -133,16 +133,17 @@ class ChatService:
                     for source, update in data.items():
                         logger.info(f"[CHAT-DEBUG] source={source}, update keys={update.keys() if isinstance(update, dict) else type(update)}")
                         if source in ("model", "tools"):
-                            formatted = ChatService._format_update({source: update}, enable_thinking)
-                            logger.info(f"[CHAT-DEBUG] formatted={formatted}")
-                            if formatted:
-                                if formatted.get("type") == "tool_call":
-                                    tool_call_count += 1
-                                    if tool_call_count > 5:
-                                        logger.error(f"[CHAT] 工具调用过多，强制停止")
-                                        break
-                                if formatted.get("type") not in ("unknown", None):
-                                    yield formatted
+                            formatted_list = ChatService._format_update({source: update}, enable_thinking)
+                            logger.info(f"[CHAT-DEBUG] formatted_list={formatted_list}")
+                            for formatted in formatted_list:
+                                if formatted:
+                                    if formatted.get("type") == "tool_call":
+                                        tool_call_count += 1
+                                        if tool_call_count > 5:
+                                            logger.error(f"[CHAT] 工具调用过多，强制停止")
+                                            break
+                                    if formatted.get("type") not in ("unknown", None):
+                                        yield formatted
 
             logger.info(f"[CHAT] Agent流式执行完成")
         except Exception as e:
@@ -172,9 +173,10 @@ class ChatService:
                         elif stream_mode == "updates":
                             for source, update in data.items():
                                 if source in ("model", "tools"):
-                                    formatted = ChatService._format_update({source: update}, enable_thinking)
-                                    if formatted and formatted.get("type") not in ("unknown", None):
-                                        yield formatted
+                                    formatted_list = ChatService._format_update({source: update}, enable_thinking)
+                                    for formatted in formatted_list:
+                                        if formatted and formatted.get("type") not in ("unknown", None):
+                                            yield formatted
                     logger.info(f"[CHAT] 重试执行成功")
                     return
                 except Exception as retry_error:
@@ -198,30 +200,73 @@ class ChatService:
         from langchain_core.messages.tool import ToolMessage
         
         if isinstance(message, AIMessageChunk):
-            # 跳过工具调用 chunks，由 updates 模式处理
             tool_call_chunks = getattr(message, 'tool_call_chunks', None)
             if tool_call_chunks:
                 return None
             
             content = getattr(message, 'content', "")
-            if content:
+            
+            if include_thinking:
+                thinking_content = None
+                
+                if hasattr(message, 'content_blocks') and message.content_blocks:
+                    for block in message.content_blocks:
+                        if isinstance(block, dict):
+                            if block.get('type') == 'reasoning':
+                                thinking_content = block.get('reasoning', '')
+                            elif block.get('type') == 'thinking':
+                                thinking_content = block.get('thinking', '')
+                
+                if not thinking_content and hasattr(message, 'additional_kwargs'):
+                    additional_kwargs = message.additional_kwargs or {}
+                    if 'reasoning_content' in additional_kwargs:
+                        thinking_content = additional_kwargs['reasoning_content']
+                    elif 'thinking' in additional_kwargs:
+                        thinking_content = additional_kwargs['thinking']
+                    elif 'reasoning' in additional_kwargs:
+                        reasoning = additional_kwargs['reasoning']
+                        if isinstance(reasoning, dict) and 'summary' in reasoning:
+                            thinking_content = ''.join([
+                                s.get('text', '') for s in reasoning['summary'] 
+                                if s.get('type') == 'summary_text'
+                            ])
+                
+                if not thinking_content and isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict):
+                            if item.get('type') == 'thinking':
+                                thinking_content = item.get('thinking', '')
+                            elif item.get('type') == 'reasoning':
+                                thinking_content = item.get('reasoning', '')
+                            if thinking_content:
+                                break
+                
+                if thinking_content:
+                    return {
+                        "type": "thinking",
+                        "data": {"content": thinking_content}
+                    }
+            
+            if content and not isinstance(content, list):
                 return {
                     "type": "token",
                     "data": {"content": content}
                 }
         
         elif isinstance(message, ToolMessage):
-            # 工具执行结果，由 updates 模式处理
             return None
         
         return None
 
     @staticmethod
-    def _format_update(event: Dict, include_thinking: bool) -> Dict[str, Any]:
+    def _format_update(event: Dict, include_thinking: bool) -> List[Dict[str, Any]]:
         """格式化更新事件（stream_mode="updates"）
         
         event 格式: {"model": {"messages": [...]}} 或 {"tools": {"messages": [...]}}
+        
+        返回一个事件列表，可能包含 thinking 和 content 两个事件
         """
+        results = []
         for node_name, node_output in event.items():
             if node_name in ("model", "agent"):
                 messages = node_output.get("messages", []) if isinstance(node_output, dict) else []
@@ -229,24 +274,79 @@ class ChatService:
                     last_message = messages[-1]
                     if hasattr(last_message, 'type'):
                         if last_message.type == "ai":
-                            # 检查是否有工具调用
                             if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                                # 过滤空字符串
                                 tool_names = [tc.get('name', '') for tc in last_message.tool_calls]
                                 tool_names = [n for n in tool_names if n]
                                 if tool_names:
-                                    return {
+                                    return [{
                                         "type": "tool_call",
                                         "data": {"names": tool_names}
-                                    }
-                            # 普通文本内容
+                                    }]
+                            
                             content = getattr(last_message, 'content', "")
-                            if content:
-                                return {
+                            
+                            if include_thinking:
+                                thinking_content = None
+                                
+                                if hasattr(last_message, 'content_blocks') and last_message.content_blocks:
+                                    for block in last_message.content_blocks:
+                                        if isinstance(block, dict):
+                                            if block.get('type') == 'reasoning':
+                                                thinking_content = block.get('reasoning', '')
+                                            elif block.get('type') == 'thinking':
+                                                thinking_content = block.get('thinking', '')
+                                
+                                if not thinking_content and hasattr(last_message, 'additional_kwargs'):
+                                    additional_kwargs = last_message.additional_kwargs or {}
+                                    if 'reasoning_content' in additional_kwargs:
+                                        thinking_content = additional_kwargs['reasoning_content']
+                                    elif 'thinking' in additional_kwargs:
+                                        thinking_content = additional_kwargs['thinking']
+                                    elif 'reasoning' in additional_kwargs:
+                                        reasoning = additional_kwargs['reasoning']
+                                        if isinstance(reasoning, dict) and 'summary' in reasoning:
+                                            thinking_content = ''.join([
+                                                s.get('text', '') for s in reasoning['summary'] 
+                                                if s.get('type') == 'summary_text'
+                                            ])
+                                
+                                if not thinking_content and isinstance(content, list):
+                                    text_content = ""
+                                    for item in content:
+                                        if isinstance(item, dict):
+                                            if item.get('type') == 'thinking':
+                                                thinking_content = item.get('thinking', '')
+                                            elif item.get('type') == 'reasoning':
+                                                thinking_content = item.get('reasoning', '')
+                                            elif item.get('type') == 'text':
+                                                text_content += item.get('text', '')
+                                        elif isinstance(item, str):
+                                            text_content += item
+                                    
+                                    if thinking_content:
+                                        results.append({
+                                            "type": "thinking",
+                                            "data": {"content": thinking_content}
+                                        })
+                                    if text_content:
+                                        results.append({
+                                            "type": "content",
+                                            "data": {"content": text_content}
+                                        })
+                                    return results
+                                
+                                if thinking_content:
+                                    results.append({
+                                        "type": "thinking",
+                                        "data": {"content": thinking_content}
+                                    })
+                            
+                            if content and not isinstance(content, list):
+                                results.append({
                                     "type": "content",
                                     "data": {"content": content}
-                                }
-                            return None
+                                })
+                            return results
             elif node_name == "tools":
                 messages = node_output.get("messages", []) if isinstance(node_output, dict) else []
                 if messages:
@@ -254,14 +354,14 @@ class ChatService:
                     if hasattr(last_message, 'type') and last_message.type == "tool":
                         tool_name = getattr(last_message, 'name', None)
                         tool_content = getattr(last_message, 'content', None)
-                        return {
+                        return [{
                             "type": "tool_result",
                             "data": {
                                 "name": tool_name,
                                 "content": tool_content
                             }
-                        }
-        return {"type": "unknown", "data": event}
+                        }]
+        return [{"type": "unknown", "data": event}]
 
     @staticmethod
     def _format_event(event: Dict, include_thinking: bool) -> Dict[str, Any]:
@@ -352,34 +452,42 @@ class ChatService:
         content: str,
         model_type: str = "general",
         is_expert: bool = False,
+        enable_thinking: bool = False,
         images: Optional[List[str]] = None,
         messages_history: Optional[List[Dict[str, str]]] = None
-    ) -> AsyncGenerator[str, None]:
-        """使用Agent生成流式响应"""
+    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
+        """使用Agent生成流式响应
+        
+        Args:
+            enable_thinking: 是否启用深度思考模式，启用时会流式输出思考内容
+        """
         try:
-            logger.info(f"[CHAT] 开始生成流式响应: conversation_id={conversation_id}")
+            logger.info(f"[CHAT] 开始生成流式响应: conversation_id={conversation_id}, enable_thinking={enable_thinking}")
             has_token_output = False
+            in_thinking_mode = False
             async for event in ChatService.process_message(
                 conversation_id=conversation_id,
                 content=content,
                 images=images,
                 is_expert=is_expert,
-                enable_thinking=False
+                enable_thinking=enable_thinking
             ):
                 if event["type"] == "token":
-                    # 流式 token，直接输出
                     token_content = event["data"]["content"]
                     if token_content:
                         has_token_output = True
                         yield token_content
                 elif event["type"] == "content":
-                    # 完整内容（仅在没有 token 流时输出，避免重复）
-                    if not has_token_output:
-                        content_data = event["data"].get("content")
-                        if content_data:
-                            yield content_data
+                    content_data = event["data"].get("content")
+                    if content_data:
+                        yield event
+                elif event["type"] == "thinking":
+                    in_thinking_mode = True
+                    yield event
+                elif event["type"] == "thinking_end":
+                    in_thinking_mode = False
+                    yield event
                 elif event["type"] == "tool_call":
-                    # 过滤空字符串
                     names = [n for n in event["data"].get("names", []) if n]
                     if names:
                         yield f"\n[使用工具: {', '.join(names)}]\n"
@@ -396,6 +504,7 @@ class ChatService:
         content: str,
         model_type: str = "general",
         is_expert: bool = False,
+        enable_thinking: bool = False,
         images: Optional[List[str]] = None,
         messages_history: Optional[List[Dict[str, str]]] = None
     ) -> str:
@@ -407,7 +516,7 @@ class ChatService:
                 content=content,
                 images=images,
                 is_expert=is_expert,
-                enable_thinking=False
+                enable_thinking=enable_thinking
             ):
                 if event["type"] == "content":
                     full_response.append(event["data"]["content"])

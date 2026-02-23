@@ -88,6 +88,7 @@ class ModelFactory:
         model_kwargs = {}
         if thinking:
             model_kwargs["enable_thinking"] = True
+            model_kwargs["incremental_output"] = True
         
         return ChatTongyi(
             model=model_name,

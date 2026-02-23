@@ -13,6 +13,7 @@
         :message-index="index" 
         :conversation-id="conversationId" 
         @regenerate="handleRegenerate(index)"
+        @toggle-thinking="handleToggleThinking(message.id)"
       />
     </div>
   </div>
@@ -23,6 +24,7 @@ import { ref, watch, nextTick, onMounted } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
 import ChatMessageBubble from './ChatMessageBubble.vue'
 import type { ChatMessage } from '@/stores/chat'
+import { useChatStore } from '@/stores/chat'
 
 interface Props {
   messages: ChatMessage[]
@@ -35,6 +37,7 @@ const emit = defineEmits<{
   regenerate: [index: number]
 }>()
 const messageListRef = ref<HTMLElement | null>(null)
+const chatStore = useChatStore()
 
 function scrollToBottom() {
   nextTick(() => {
@@ -46,6 +49,10 @@ function scrollToBottom() {
 
 function handleRegenerate(index: number) {
   emit('regenerate', index)
+}
+
+function handleToggleThinking(messageId: number) {
+  chatStore.toggleThinkingExpanded(messageId)
 }
 
 watch(

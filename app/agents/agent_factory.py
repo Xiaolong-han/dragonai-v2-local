@@ -65,6 +65,7 @@ class AgentFactory:
     _checkpointer: Optional[Union[AsyncPostgresSaver, InMemorySaver]] = None
     _context_manager: Optional[object] = None
     _initialized: bool = False
+    _agent_cache: dict = {}
 
     @classmethod
     async def init_checkpointer(cls) -> bool:
@@ -129,6 +130,8 @@ class AgentFactory:
 
         使用create_agent创建ReAct模式的Agent，无需AgentExecutor。
         内部基于LangGraph构建，支持持久化、流式输出等特性。
+        
+        使用缓存机制，相同配置的agent只创建一次，通过thread_id区分不同对话。
 
         Args:
             is_expert: 是否使用专家模型
@@ -137,6 +140,12 @@ class AgentFactory:
         Returns:
             Agent实例，可直接调用invoke或stream
         """
+        cache_key = f"expert_{is_expert}_thinking_{enable_thinking}"
+        
+        if cache_key in cls._agent_cache:
+            logger.debug(f"[AGENT] 使用缓存的Agent: {cache_key}")
+            return cls._agent_cache[cache_key]
+        
         model = ModelFactory.get_general_model(
             is_expert=is_expert,
             thinking=enable_thinking
@@ -150,6 +159,9 @@ class AgentFactory:
             system_prompt=SYSTEM_PROMPT,
             checkpointer=checkpointer,
         )
+        
+        cls._agent_cache[cache_key] = agent
+        logger.info(f"[AGENT] 创建并缓存Agent: {cache_key}")
 
         return agent
 

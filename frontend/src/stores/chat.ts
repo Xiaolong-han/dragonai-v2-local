@@ -1,7 +1,6 @@
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
 export interface ChatMessage {
@@ -20,6 +19,13 @@ export interface ToolOptions {
   size?: string
   n?: number
   language?: string
+}
+
+const TOOL_PREFIXES: Record<string, string> = {
+  translation: '翻译',
+  coding: '编程',
+  image_generation: '生成图像',
+  image_editing: '编辑图像'
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -42,7 +48,7 @@ export const useChatStore = defineStore('chat', () => {
     content: string, 
     images?: string[]
   ) {
-    _sendMessageInternal(conversationId, content, images, null, null)
+    _sendMessageInternal(conversationId, content, images)
   }
 
   function sendMessageWithTool(
@@ -52,317 +58,35 @@ export const useChatStore = defineStore('chat', () => {
     options?: ToolOptions,
     images?: string[]
   ) {
-    if (tool === 'translation') {
-      _sendTranslationTool(conversationId, content, options)
-    } else if (tool === 'coding') {
-      _sendCodingTool(conversationId, content, options)
-    } else if (tool === 'image_generation') {
-      _sendImageGenerationTool(conversationId, content, options)
-    } else if (tool === 'image_editing') {
-      _sendImageEditingTool(conversationId, content, images, options)
-    } else {
-      _sendMessageInternal(conversationId, content, images, tool, options)
-    }
-  }
-
-  // 直接调用翻译专项API
-  async function _sendTranslationTool(
-    conversationId: number,
-    content: string,
-    options?: ToolOptions
-  ) {
-    sending.value = true
-
-    const userMessage: ChatMessage = {
-      id: Date.now(),
-      conversation_id: conversationId,
-      role: 'user',
-      content: content,
-      created_at: new Date().toISOString()
-    }
-    messages.value.push(userMessage)
-
-    const assistantMessageId = Date.now() + 1
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      conversation_id: conversationId,
-      role: 'assistant',
-      content: '',
-      created_at: new Date().toISOString(),
-      is_streaming: true
-    }
-    messages.value.push(assistantMessage)
-
-    try {
-      const response = await request.post('/api/v1/tools/translation', {
-        text: content,
-        target_lang: options?.targetLang || 'zh',
-        source_lang: options?.sourceLang,
-        is_expert: false
-      }) as any
-
-      if (response.text) {
-        const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-        if (msgIndex !== -1) {
-          messages.value[msgIndex] = {
-            ...messages.value[msgIndex],
-            content: response.text,
-            is_streaming: false
-          }
+    const prefix = TOOL_PREFIXES[tool] || ''
+    let prefixedContent = content
+    
+    if (prefix) {
+      if (tool === 'translation' && options?.targetLang) {
+        const langMap: Record<string, string> = {
+          'zh': '中文',
+          'en': '英文',
+          'ja': '日文',
+          'ko': '韩文',
+          'fr': '法文',
+          'de': '德文',
+          'es': '西班牙文',
+          'ru': '俄文'
         }
-        ElMessage.success('翻译完成')
+        const targetLangName = langMap[options.targetLang] || options.targetLang
+        prefixedContent = `翻译成${targetLangName}：${content}`
       } else {
-        throw new Error('翻译失败')
+        prefixedContent = `${prefix}：${content}`
       }
-    } catch (error) {
-      console.error('Translation error:', error)
-      const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-      if (msgIndex !== -1) {
-        messages.value[msgIndex] = {
-          ...messages.value[msgIndex],
-          content: '翻译失败，请重试',
-          is_streaming: false
-        }
-      }
-      ElMessage.error('翻译失败')
-    } finally {
-      sending.value = false
     }
-  }
-
-  // 直接调用编程专项API
-  async function _sendCodingTool(
-    conversationId: number,
-    content: string,
-    options?: ToolOptions
-  ) {
-    sending.value = true
-
-    const userMessage: ChatMessage = {
-      id: Date.now(),
-      conversation_id: conversationId,
-      role: 'user',
-      content: content,
-      created_at: new Date().toISOString()
-    }
-    messages.value.push(userMessage)
-
-    const assistantMessageId = Date.now() + 1
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      conversation_id: conversationId,
-      role: 'assistant',
-      content: '',
-      created_at: new Date().toISOString(),
-      is_streaming: true
-    }
-    messages.value.push(assistantMessage)
-
-    try {
-      const response = await request.post('/api/v1/tools/coding', {
-        prompt: content,
-        language: options?.language || 'python',
-        is_expert: false
-      }) as any
-
-      if (response.content) {
-        const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-        if (msgIndex !== -1) {
-          messages.value[msgIndex] = {
-            ...messages.value[msgIndex],
-            content: response.content,
-            is_streaming: false
-          }
-        }
-        ElMessage.success('代码生成完成')
-      } else {
-        throw new Error('代码生成失败')
-      }
-    } catch (error) {
-      console.error('Coding error:', error)
-      const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-      if (msgIndex !== -1) {
-        messages.value[msgIndex] = {
-          ...messages.value[msgIndex],
-          content: '代码生成失败，请重试',
-          is_streaming: false
-        }
-      }
-      ElMessage.error('代码生成失败')
-    } finally {
-      sending.value = false
-    }
-  }
-
-  // 直接调用图像生成专项API
-  async function _sendImageGenerationTool(
-    conversationId: number,
-    content: string,
-    options?: ToolOptions
-  ) {
-    sending.value = true
-
-    const userMessage: ChatMessage = {
-      id: Date.now(),
-      conversation_id: conversationId,
-      role: 'user',
-      content: content,
-      created_at: new Date().toISOString()
-    }
-    messages.value.push(userMessage)
-
-    const assistantMessageId = Date.now() + 1
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      conversation_id: conversationId,
-      role: 'assistant',
-      content: '',
-      created_at: new Date().toISOString(),
-      is_streaming: true
-    }
-    messages.value.push(assistantMessage)
-
-    try {
-      const response = await request.post('/api/v1/tools/image-generation', {
-        prompt: content,
-        size: options?.size || '1024*1024',
-        n: options?.n || 1,
-        is_expert: false
-      }) as any
-
-      if (response.images) {
-        const urls = response.images || []
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
-        
-        const resultText = `已生成 ${urls.length} 张图片：\n\n` + 
-          urls.map((url: string, idx: number) => {
-            let fullUrl = url
-            if (url.startsWith('/api/')) {
-              fullUrl = `${baseUrl}${url}`
-            } else if (!url.startsWith('http')) {
-              fullUrl = `${baseUrl}/api/v1/files/serve/${url}`
-            }
-            return `![生成的图片](${fullUrl})`
-          }).join('\n\n')
-        
-        const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-        if (msgIndex !== -1) {
-          messages.value[msgIndex] = {
-            ...messages.value[msgIndex],
-            content: resultText,
-            is_streaming: false
-          }
-        }
-        ElMessage.success(`成功生成 ${urls.length} 张图片`)
-      } else {
-        throw new Error('图像生成失败')
-      }
-    } catch (error) {
-      console.error('Image generation error:', error)
-      const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-      if (msgIndex !== -1) {
-        messages.value[msgIndex] = {
-          ...messages.value[msgIndex],
-          content: '图像生成失败，请重试',
-          is_streaming: false
-        }
-      }
-      ElMessage.error('图像生成失败')
-    } finally {
-      sending.value = false
-    }
-  }
-
-  async function _sendImageEditingTool(
-    conversationId: number,
-    content: string,
-    images: string[] | undefined,
-    options?: ToolOptions
-  ) {
-    if (!images || images.length === 0) {
-      ElMessage.error('请先上传图片')
-      return
-    }
-
-    sending.value = true
-
-    const userMessage: ChatMessage = {
-      id: Date.now(),
-      conversation_id: conversationId,
-      role: 'user',
-      content: `[图片编辑] ${content}`,
-      created_at: new Date().toISOString()
-    }
-    messages.value.push(userMessage)
-
-    const assistantMessageId = Date.now() + 1
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      conversation_id: conversationId,
-      role: 'assistant',
-      content: '',
-      created_at: new Date().toISOString(),
-      is_streaming: true
-    }
-    messages.value.push(assistantMessage)
-
-    try {
-      const response = await request.post('/api/v1/tools/image-editing', {
-        image_path: images[0],
-        prompt: content,
-        size: options?.size || '1024*1024',
-        is_expert: false
-      }) as any
-
-      if (response.images) {
-        const urls = response.images || []
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
-        
-        const resultText = `图像编辑完成：\n\n` + 
-          urls.map((url: string, idx: number) => {
-            let fullUrl = url
-            if (url.startsWith('/api/')) {
-              fullUrl = `${baseUrl}${url}`
-            } else if (!url.startsWith('http')) {
-              fullUrl = `${baseUrl}/api/v1/files/serve/${url}`
-            }
-            return `![编辑后的图片](${fullUrl})`
-          }).join('\n\n')
-        
-        const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-        if (msgIndex !== -1) {
-          messages.value[msgIndex] = {
-            ...messages.value[msgIndex],
-            content: resultText,
-            is_streaming: false
-          }
-        }
-        ElMessage.success('图像编辑完成')
-      } else {
-        throw new Error('图像编辑失败')
-      }
-    } catch (error) {
-      console.error('Image editing error:', error)
-      const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-      if (msgIndex !== -1) {
-        messages.value[msgIndex] = {
-          ...messages.value[msgIndex],
-          content: '图像编辑失败，请重试',
-          is_streaming: false
-        }
-      }
-      ElMessage.error('图像编辑失败')
-    } finally {
-      sending.value = false
-    }
+    
+    _sendMessageInternal(conversationId, prefixedContent, images)
   }
 
   function _sendMessageInternal(
     conversationId: number,
     content: string,
-    images: string[] | undefined,
-    tool: string | null,
-    toolOptions: ToolOptions | null
+    images: string[] | undefined
   ) {
     sending.value = true
 
@@ -397,11 +121,6 @@ export const useChatStore = defineStore('chat', () => {
       images: images || null
     }
 
-    if (tool) {
-      body.tool = tool
-      body.tool_options = toolOptions || {}
-    }
-
     const xhr = new XMLHttpRequest()
     let receivedLength = 0
     
@@ -410,7 +129,6 @@ export const useChatStore = defineStore('chat', () => {
     xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('token')}`)
     
     xhr.onprogress = () => {
-      // 检查 401 状态
       if (xhr.status === 401) {
         console.log('[SSE] 401 detected in onprogress')
         localStorage.removeItem('token')
@@ -424,14 +142,11 @@ export const useChatStore = defineStore('chat', () => {
       
       console.log('[SSE] onprogress, newData length:', newData.length, 'total:', receivedLength)
       
-      // 处理可能不完整的行（以\n结尾的才是完整行）
       const lines = newData.split('\n')
       let newContent = ''
       
       lines.forEach((line, index) => {
-        // 最后一行可能不完整，除非它以\n结尾
         if (index === lines.length - 1 && !newData.endsWith('\n')) {
-          // 将不完整行加回到 receivedLength，下次处理
           receivedLength -= line.length
           return
         }
@@ -442,7 +157,6 @@ export const useChatStore = defineStore('chat', () => {
             console.log('[SSE] Received DONE signal')
             return
           }
-          // 解码 JSON 数据
           try {
             const decoded = JSON.parse(data)
             newContent += decoded
@@ -473,11 +187,9 @@ export const useChatStore = defineStore('chat', () => {
     xhr.onload = () => {
       console.log('[SSE] Request completed, status:', xhr.status)
       
-      // 处理 401 未授权
       if (xhr.status === 401) {
         localStorage.removeItem('token')
         sending.value = false
-        // 跳转到登录页
         import('element-plus').then(({ ElMessage }) => {
           ElMessage.error('登录已过期，请重新登录')
         })
@@ -520,7 +232,7 @@ export const useChatStore = defineStore('chat', () => {
       }
     }
     
-    xhr.timeout = 120000 // 2分钟超时
+    xhr.timeout = 120000
     xhr.send(JSON.stringify(body))
   }
 
@@ -561,3 +273,5 @@ export const useChatStore = defineStore('chat', () => {
     clearMessages
   }
 })
+
+import request from '@/utils/request'

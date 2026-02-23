@@ -110,14 +110,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Edit, UploadFilled, Refresh, Promotion, Download } from '@element-plus/icons-vue'
 import request from '@/utils/request'
+import { useConversationStore } from '@/stores/conversation'
+import { useChatStore } from '@/stores/chat'
+
+const conversationStore = useConversationStore()
+const chatStore = useChatStore()
 
 const fileInput = ref<HTMLInputElement>()
 const selectedImage = ref<string>('')
 const selectedFile = ref<File | null>(null)
+const uploadedImagePath = ref<string>('')
 const prompt = ref('')
 const isExpert = ref(false)
 const size = ref('1024*1024')
@@ -169,25 +175,65 @@ async function editImage() {
   }
 
   loading.value = true
+  images.value = []
+  
   try {
-    const formData = new FormData()
-    formData.append('files', selectedFile.value)
-    const uploadResponse = await request.post('/api/v1/files/upload', formData)
+    if (!uploadedImagePath.value) {
+      const formData = new FormData()
+      formData.append('files', selectedFile.value)
+      const uploadResponse = await request.post('/api/v1/files/upload', formData)
+      uploadedImagePath.value = (uploadResponse as any)[0].relative_path
+    }
 
-    const relativePath = (uploadResponse as any)[0].relative_path
+    let conversationId = conversationStore.currentConversationId
+    if (!conversationId) {
+      const conv = await conversationStore.createConversation({
+        title: `图像编辑: ${prompt.value.substring(0, 20)}...`
+      })
+      conversationId = conv.id
+    }
 
-    const data = await request.post('/api/v1/tools/image-editing', {
-      image_path: relativePath,
-      prompt: prompt.value,
-      is_expert: isExpert.value,
-      size: size.value
+    const prefixedContent = `编辑图像：图片路径 ${uploadedImagePath.value}，${prompt.value}`
+
+    await new Promise<void>((resolve, reject) => {
+      const unsubscribe = chatStore.$onAction(({ name, after }) => {
+        if (name === 'sendMessage' || name === 'sendMessageWithTool') {
+          after(() => {
+            const lastMessage = chatStore.messages[chatStore.messages.length - 1]
+            if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.is_streaming) {
+              const content = lastMessage.content
+              const imageUrls: string[] = []
+              const regex = /!\[.*?\]\((.*?)\)/g
+              let match
+              while ((match = regex.exec(content)) !== null) {
+                imageUrls.push(match[1])
+              }
+              
+              if (imageUrls.length > 0) {
+                images.value = imageUrls
+                ElMessage.success('图像编辑成功！')
+              }
+              loading.value = false
+              unsubscribe()
+              resolve()
+            }
+          })
+        }
+      })
+
+      chatStore.sendMessage(conversationId!, prefixedContent, [uploadedImagePath.value])
+
+      setTimeout(() => {
+        unsubscribe()
+        if (loading.value) {
+          loading.value = false
+          reject(new Error('图像编辑超时'))
+        }
+      }, 120000)
     })
-    images.value = data.images
-    ElMessage.success('图像编辑成功！')
   } catch (error) {
     console.error('Failed to edit image:', error)
     ElMessage.error('图像编辑失败，请重试')
-  } finally {
     loading.value = false
   }
 }
@@ -211,6 +257,10 @@ async function downloadImage(imageUrl: string, index: number) {
     ElMessage.error('图片下载失败')
   }
 }
+
+onMounted(async () => {
+  await conversationStore.fetchConversations()
+})
 </script>
 
 <style scoped>

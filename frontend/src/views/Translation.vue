@@ -132,10 +132,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Guide, Switch, DocumentCopy, Promotion, Loading } from '@element-plus/icons-vue'
-import request from '@/utils/request'
+import { useConversationStore } from '@/stores/conversation'
+import { useChatStore } from '@/stores/chat'
+
+const router = useRouter()
+const conversationStore = useConversationStore()
+const chatStore = useChatStore()
 
 const sourceText = ref('')
 const sourceLang = ref<string | null>(null)
@@ -173,23 +179,59 @@ async function translate() {
   loading.value = true
   result.value = ''
   modelName.value = ''
+  
   try {
-    const data: any = {
-      text: sourceText.value,
-      target_lang: targetLang.value,
-      is_expert: isExpert.value
+    let conversationId = conversationStore.currentConversationId
+    if (!conversationId) {
+      const conv = await conversationStore.createConversation({
+        title: `翻译: ${sourceText.value.substring(0, 20)}...`
+      })
+      conversationId = conv.id
     }
-    if (sourceLang.value) {
-      data.source_lang = sourceLang.value
+
+    const langMap: Record<string, string> = {
+      'zh': '中文',
+      'en': '英文',
+      'ja': '日文',
+      'ko': '韩文',
+      'fr': '法文',
+      'de': '德文',
+      'es': '西班牙文',
+      'ru': '俄文'
     }
-    const response = await request.post('/api/v1/tools/translation', data)
-    result.value = response.text
-    modelName.value = response.model_name
-    ElMessage.success('翻译成功！')
+    const targetLangName = langMap[targetLang.value] || targetLang.value
+    const prefixedContent = `翻译成${targetLangName}：${sourceText.value}`
+
+    await new Promise<void>((resolve, reject) => {
+      const unsubscribe = chatStore.$onAction(({ name, after }) => {
+        if (name === 'sendMessage' || name === 'sendMessageWithTool') {
+          after(() => {
+            const lastMessage = chatStore.messages[chatStore.messages.length - 1]
+            if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.is_streaming) {
+              result.value = lastMessage.content
+              loading.value = false
+              modelName.value = isExpert.value ? 'expert' : 'fast'
+              ElMessage.success('翻译成功！')
+              unsubscribe()
+              resolve()
+            }
+          })
+        }
+      })
+
+      chatStore.sendMessage(conversationId!, prefixedContent)
+
+      setTimeout(() => {
+        unsubscribe()
+        if (loading.value) {
+          loading.value = false
+          reject(new Error('翻译超时'))
+        }
+      }, 60000)
+    })
   } catch (error) {
     console.error('Failed to translate:', error)
     ElMessage.error('翻译失败，请重试')
-  } finally {
     loading.value = false
   }
 }
@@ -203,6 +245,10 @@ function copyResult() {
     })
   }
 }
+
+onMounted(async () => {
+  await conversationStore.fetchConversations()
+})
 </script>
 
 <style scoped>

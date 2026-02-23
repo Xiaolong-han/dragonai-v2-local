@@ -85,12 +85,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Picture, Lightning, Star, ZoomIn, Download } from '@element-plus/icons-vue'
-import { useToolStore } from '@/stores/tool'
+import { useConversationStore } from '@/stores/conversation'
+import { useChatStore } from '@/stores/chat'
 
-const toolStore = useToolStore()
+const conversationStore = useConversationStore()
+const chatStore = useChatStore()
 
 const modelMode = ref<'fast' | 'expert'>('fast')
 const prompt = ref('')
@@ -119,17 +121,59 @@ async function generate() {
   }
 
   loading.value = true
+  result.value = null
+  
   try {
-    result.value = await toolStore.directImageGenerate({
-      prompt: prompt.value,
-      size: size.value,
-      n: n.value,
-      is_expert: modelMode.value === 'expert'
+    let conversationId = conversationStore.currentConversationId
+    if (!conversationId) {
+      const conv = await conversationStore.createConversation({
+        title: `图像生成: ${prompt.value.substring(0, 20)}...`
+      })
+      conversationId = conv.id
+    }
+
+    const prefixedContent = `生成图像：${prompt.value}`
+
+    await new Promise<void>((resolve, reject) => {
+      const unsubscribe = chatStore.$onAction(({ name, after }) => {
+        if (name === 'sendMessage' || name === 'sendMessageWithTool') {
+          after(() => {
+            const lastMessage = chatStore.messages[chatStore.messages.length - 1]
+            if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.is_streaming) {
+              const content = lastMessage.content
+              const imageUrls: string[] = []
+              const regex = /!\[.*?\]\((.*?)\)/g
+              let match
+              while ((match = regex.exec(content)) !== null) {
+                imageUrls.push(match[1])
+              }
+              
+              if (imageUrls.length > 0) {
+                result.value = { images: imageUrls }
+                ElMessage.success('图像生成成功')
+              } else {
+                result.value = { images: [], rawContent: content }
+              }
+              loading.value = false
+              unsubscribe()
+              resolve()
+            }
+          })
+        }
+      })
+
+      chatStore.sendMessage(conversationId!, prefixedContent)
+
+      setTimeout(() => {
+        unsubscribe()
+        if (loading.value) {
+          loading.value = false
+          reject(new Error('图像生成超时'))
+        }
+      }, 120000)
     })
-    ElMessage.success('图像生成成功')
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '图像生成失败')
-  } finally {
+    ElMessage.error(error.message || '图像生成失败')
     loading.value = false
   }
 }
@@ -157,6 +201,10 @@ async function downloadImage(url: string, index: number) {
     ElMessage.error('图片下载失败')
   }
 }
+
+onMounted(async () => {
+  await conversationStore.fetchConversations()
+})
 </script>
 
 <style scoped>

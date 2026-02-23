@@ -120,10 +120,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Operation, Promotion, Document, DocumentCopy, ChatDotRound } from '@element-plus/icons-vue'
-import request from '@/utils/request'
+import { useConversationStore } from '@/stores/conversation'
+import { useChatStore } from '@/stores/chat'
+
+const conversationStore = useConversationStore()
+const chatStore = useChatStore()
 
 const prompt = ref('')
 const isExpert = ref(false)
@@ -139,22 +143,51 @@ async function generateCode() {
   }
 
   loading.value = true
+  result.value = null
+  
   try {
-    const data: any = {
-      prompt: prompt.value,
-      is_expert: isExpert.value,
-      temperature: temperature.value
+    let conversationId = conversationStore.currentConversationId
+    if (!conversationId) {
+      const conv = await conversationStore.createConversation({
+        title: `编程: ${prompt.value.substring(0, 20)}...`
+      })
+      conversationId = conv.id
     }
-    if (maxTokens.value) {
-      data.max_tokens = maxTokens.value
-    }
-    const response = await request.post('/api/v1/tools/coding', data)
-    result.value = response
-    ElMessage.success('代码生成成功！')
+
+    const prefixedContent = `编程：${prompt.value}`
+
+    await new Promise<void>((resolve, reject) => {
+      const unsubscribe = chatStore.$onAction(({ name, after }) => {
+        if (name === 'sendMessage' || name === 'sendMessageWithTool') {
+          after(() => {
+            const lastMessage = chatStore.messages[chatStore.messages.length - 1]
+            if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.is_streaming) {
+              result.value = {
+                content: lastMessage.content,
+                model_name: isExpert.value ? 'expert' : 'fast'
+              }
+              loading.value = false
+              ElMessage.success('代码生成成功！')
+              unsubscribe()
+              resolve()
+            }
+          })
+        }
+      })
+
+      chatStore.sendMessage(conversationId!, prefixedContent)
+
+      setTimeout(() => {
+        unsubscribe()
+        if (loading.value) {
+          loading.value = false
+          reject(new Error('代码生成超时'))
+        }
+      }, 120000)
+    })
   } catch (error) {
     console.error('Failed to generate code:', error)
     ElMessage.error('代码生成失败，请重试')
-  } finally {
     loading.value = false
   }
 }
@@ -168,6 +201,10 @@ function copyCode() {
     })
   }
 }
+
+onMounted(async () => {
+  await conversationStore.fetchConversations()
+})
 </script>
 
 <style scoped>

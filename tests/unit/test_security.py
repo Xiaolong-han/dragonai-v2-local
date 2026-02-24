@@ -49,4 +49,3 @@ class TestSecurity:
     def test_decode_access_token_invalid(self, test_settings):
         payload = decode_access_token("invalid.token.here")
         assert payload is None
-

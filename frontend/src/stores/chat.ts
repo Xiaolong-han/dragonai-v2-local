@@ -45,11 +45,16 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const response = await request.get(`/api/v1/chat/conversations/${conversationId}/history`)
       const rawMessages = (response as any).messages || []
-      messages.value = rawMessages.map((msg: any) => ({
-        ...msg,
-        thinking_content: msg.metadata?.thinking_content || msg.metadata_?.thinking_content || null,
-        is_thinking_expanded: false
-      }))
+      console.log('[HISTORY] Raw messages:', rawMessages)
+      messages.value = rawMessages.map((msg: any) => {
+        const metadata = msg.metadata_ || msg.metadata || {}
+        console.log('[HISTORY] Message:', msg.id, 'metadata:', metadata, 'thinking_content:', metadata.thinking_content)
+        return {
+          ...msg,
+          thinking_content: metadata.thinking_content || undefined,
+          is_thinking_expanded: false
+        }
+      })
     } finally {
       loading.value = false
     }
@@ -179,24 +184,20 @@ export const useChatStore = defineStore('chat', () => {
           }
           try {
             const decoded = JSON.parse(data)
+            console.log('[SSE] Decoded:', decoded, 'type:', typeof decoded)
             
             if (typeof decoded === 'object' && decoded.type === 'thinking') {
               isThinkingPhase = true
-              newThinkingContent += decoded.data?.content || ''
-              console.log('[SSE] Thinking chunk:', decoded.data?.content?.substring(0, 50))
+              const thinkingContent = decoded.data?.content || decoded.content || ''
+              newThinkingContent += thinkingContent
+              console.log('[SSE] Thinking chunk:', thinkingContent.substring(0, 50), 'decoded.data:', decoded.data)
             } else if (typeof decoded === 'object' && decoded.type === 'thinking_end') {
               isThinkingPhase = false
-              const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
-              if (msgIndex !== -1) {
-                messages.value[msgIndex] = {
-                  ...messages.value[msgIndex],
-                  is_thinking_expanded: false
-                }
-              }
-              console.log('[SSE] Thinking phase ended, collapsed')
+              console.log('[SSE] Thinking phase ended')
             } else if (typeof decoded === 'object' && decoded.type === 'content') {
-              newContent += decoded.data?.content || ''
-              console.log('[SSE] Content chunk:', decoded.data?.content?.substring(0, 50))
+              const contentStr = decoded.data?.content || decoded.content || ''
+              newContent += contentStr
+              console.log('[SSE] content event:', contentStr.substring(0, 50) + (contentStr.length > 50 ? '...' : ''))
             } else if (typeof decoded === 'string') {
               newContent += decoded
               console.log('[SSE] data chunk:', decoded.substring(0, 50) + (decoded.length > 50 ? '...' : ''))
@@ -242,11 +243,10 @@ export const useChatStore = defineStore('chat', () => {
       sending.value = false
       const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
       if (msgIndex !== -1) {
-        const currentMsg = messages.value[msgIndex]
         messages.value[msgIndex] = {
-          ...currentMsg,
+          ...messages.value[msgIndex],
           is_streaming: false,
-          is_thinking_expanded: currentMsg.thinking_content ? true : false
+          is_thinking_expanded: false
         }
       }
     }

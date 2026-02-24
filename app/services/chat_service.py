@@ -27,7 +27,7 @@ class ChatService:
         cache_key = f"messages:conversation:{conversation_id}:user:{user_id}:skip:{skip}:limit:{limit}"
         
         async def fetch():
-            return db.query(Message).join(
+            messages = db.query(Message).join(
                 Conversation, Message.conversation_id == Conversation.id
             ).filter(
                 Message.conversation_id == conversation_id,
@@ -35,6 +35,9 @@ class ChatService:
             ).order_by(
                 desc(Message.created_at)
             ).offset(skip).limit(limit).all()
+            for m in messages:
+                logger.info(f"[DB] Fetched message id={m.id}, metadata_={m.metadata_}")
+            return messages
         
         messages = await cache_aside(key=cache_key, ttl=3600, data_func=fetch)
         return list(reversed(messages)) if messages else []
@@ -62,6 +65,8 @@ class ChatService:
         db.add(db_message)
         db.commit()
         db.refresh(db_message)
+        
+        logger.info(f"[DB] Saved message id={db_message.id}, metadata_={db_message.metadata_}")
         
         await ChatService._invalidate_messages_cache(conversation_id, user_id)
         return db_message
@@ -136,14 +141,13 @@ class ChatService:
                             formatted_list = ChatService._format_update({source: update}, enable_thinking)
                             logger.info(f"[CHAT-DEBUG] formatted_list={formatted_list}")
                             for formatted in formatted_list:
-                                if formatted:
-                                    if formatted.get("type") == "tool_call":
-                                        tool_call_count += 1
-                                        if tool_call_count > 5:
-                                            logger.error(f"[CHAT] 工具调用过多，强制停止")
-                                            break
-                                    if formatted.get("type") not in ("unknown", None):
-                                        yield formatted
+                                if formatted.get("type") == "tool_call":
+                                    tool_call_count += 1
+                                    if tool_call_count > 5:
+                                        logger.error(f"[CHAT] 工具调用过多，强制停止")
+                                        break
+                                if formatted.get("type") not in ("unknown", None):
+                                    yield formatted
 
             logger.info(f"[CHAT] Agent流式执行完成")
         except Exception as e:
@@ -175,7 +179,7 @@ class ChatService:
                                 if source in ("model", "tools"):
                                     formatted_list = ChatService._format_update({source: update}, enable_thinking)
                                     for formatted in formatted_list:
-                                        if formatted and formatted.get("type") not in ("unknown", None):
+                                        if formatted.get("type") not in ("unknown", None):
                                             yield formatted
                     logger.info(f"[CHAT] 重试执行成功")
                     return
@@ -264,7 +268,7 @@ class ChatService:
         
         event 格式: {"model": {"messages": [...]}} 或 {"tools": {"messages": [...]}}
         
-        返回一个事件列表，可能包含 thinking 和 content 两个事件
+        返回事件列表，可能包含 thinking 和 content 两个事件
         """
         results = []
         for node_name, node_output in event.items():
@@ -284,10 +288,9 @@ class ChatService:
                                     }]
                             
                             content = getattr(last_message, 'content', "")
+                            thinking_content = None
                             
                             if include_thinking:
-                                thinking_content = None
-                                
                                 if hasattr(last_message, 'content_blocks') and last_message.content_blocks:
                                     for block in last_message.content_blocks:
                                         if isinstance(block, dict):
@@ -311,42 +314,40 @@ class ChatService:
                                             ])
                                 
                                 if not thinking_content and isinstance(content, list):
-                                    text_content = ""
                                     for item in content:
                                         if isinstance(item, dict):
                                             if item.get('type') == 'thinking':
                                                 thinking_content = item.get('thinking', '')
                                             elif item.get('type') == 'reasoning':
                                                 thinking_content = item.get('reasoning', '')
-                                            elif item.get('type') == 'text':
-                                                text_content += item.get('text', '')
-                                        elif isinstance(item, str):
-                                            text_content += item
-                                    
-                                    if thinking_content:
-                                        results.append({
-                                            "type": "thinking",
-                                            "data": {"content": thinking_content}
-                                        })
-                                    if text_content:
-                                        results.append({
-                                            "type": "content",
-                                            "data": {"content": text_content}
-                                        })
-                                    return results
-                                
-                                if thinking_content:
-                                    results.append({
-                                        "type": "thinking",
-                                        "data": {"content": thinking_content}
-                                    })
+                                            if thinking_content:
+                                                break
                             
-                            if content and not isinstance(content, list):
+                            if thinking_content:
+                                results.append({
+                                    "type": "thinking",
+                                    "data": {"content": thinking_content}
+                                })
+                            
+                            if isinstance(content, list):
+                                text_content = ""
+                                for item in content:
+                                    if isinstance(item, dict) and item.get('type') == 'text':
+                                        text_content += item.get('text', '')
+                                    elif isinstance(item, str):
+                                        text_content += item
+                                if text_content:
+                                    results.append({
+                                        "type": "content",
+                                        "data": {"content": text_content}
+                                    })
+                            elif content:
                                 results.append({
                                     "type": "content",
                                     "data": {"content": content}
                                 })
-                            return results
+                            
+                            return results if results else []
             elif node_name == "tools":
                 messages = node_output.get("messages", []) if isinstance(node_output, dict) else []
                 if messages:
@@ -478,9 +479,10 @@ class ChatService:
                         has_token_output = True
                         yield token_content
                 elif event["type"] == "content":
-                    content_data = event["data"].get("content")
-                    if content_data:
-                        yield event
+                    if not has_token_output:
+                        content_data = event["data"].get("content")
+                        if content_data:
+                            yield content_data
                 elif event["type"] == "thinking":
                     in_thinking_mode = True
                     yield event

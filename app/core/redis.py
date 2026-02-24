@@ -49,6 +49,7 @@ class RedisClient:
     async def set(self, key: str, value: Any, ttl: Optional[int] = None):
         if is_sqlalchemy_model(value) or (isinstance(value, list) and value and is_sqlalchemy_model(value[0])):
             value = model_to_dict(value)
+            logger.info(f"[REDIS] Serialized value for {key}: {value}")
         
         if isinstance(value, (dict, list)):
             value = json.dumps(value)

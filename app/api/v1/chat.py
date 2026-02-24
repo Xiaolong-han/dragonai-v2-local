@@ -70,7 +70,7 @@ async def send_chat_message(
         message_create=MessageCreate(
             role="user",
             content=chat_request.content,
-            metadata_={"images": chat_request.images} if chat_request.images else None
+            metadata={"images": chat_request.images} if chat_request.images else None
         ),
         user_id=current_user.id
     )
@@ -99,36 +99,39 @@ async def send_chat_message(
                 messages_history=history[:-1]
             ):
                 if isinstance(event, dict):
-                    logger.info(f"[SSE] Processing event: type={event.get('type')}")
                     if event.get("type") == "thinking":
-                        thinking_chunk = event.get("data", {}).get("content", "")
-                        thinking_content += thinking_chunk
-                        logger.info(f"[SSE] Sending thinking chunk: {len(thinking_chunk)} chars")
-                        yield f"data: {json.dumps({'type': 'thinking', 'data': {'content': thinking_chunk}}, ensure_ascii=False)}\n\n"
+                        thinking_data = event.get("data", {})
+                        thinking_content += thinking_data.get("content", "")
+                        logger.info(f"[SSE] Sending thinking event, content length: {len(thinking_data.get('content', ''))}")
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                     elif event.get("type") == "thinking_end":
-                        logger.info(f"[SSE] Sending thinking_end")
-                        yield f"data: {json.dumps({'type': 'thinking_end', 'data': {'content': ''}}, ensure_ascii=False)}\n\n"
-                    else:
-                        content = event.get("data", {}).get("content", "") or event.get("content", "")
+                        logger.info(f"[SSE] Sending thinking_end event")
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    elif event.get("type") == "content":
+                        content_data = event.get("data", {})
+                        content = content_data.get("content", "")
                         full_response += content
-                        yield f"data: {json.dumps({'type': 'content', 'data': {'content': content}}, ensure_ascii=False)}\n\n"
+                        logger.info(f"[SSE] Sending content event: {content[:50]}...")
+                        yield f"data: {json.dumps(content, ensure_ascii=False)}\n\n"
+                    else:
+                        content = event.get("content", "")
+                        full_response += content
+                        yield f"data: {json.dumps(content, ensure_ascii=False)}\n\n"
                 else:
                     full_response += event
                     chunk_count += 1
                     logger.info(f"[SSE] Sending chunk {chunk_count}: {len(event)} chars")
-                    yield f"data: {json.dumps({'type': 'content', 'data': {'content': event}}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                 await asyncio.sleep(0.01)
             
             logger.info(f"[SSE] Stream complete, total chunks: {chunk_count}, total chars: {len(full_response)}")
             logger.info(f"[SSE] Full response content:\n{full_response}")
-            
-            if thinking_content:
-                logger.info(f"[SSE] Sending thinking_end, total thinking: {len(thinking_content)} chars")
-                yield f"data: {json.dumps({'type': 'thinking_end', 'data': {'content': ''}}, ensure_ascii=False)}\n\n"
+            logger.info(f"[SSE] Thinking content length: {len(thinking_content)}")
             
             metadata = {"model": "expert" if chat_request.is_expert else "fast"}
             if thinking_content:
                 metadata["thinking_content"] = thinking_content
+                logger.info(f"[SSE] Saving thinking_content to metadata, length: {len(thinking_content)}")
             
             await chat_service.create_message(
                 db,
@@ -136,7 +139,7 @@ async def send_chat_message(
                 message_create=MessageCreate(
                     role="assistant",
                     content=full_response,
-                    metadata_=metadata
+                    metadata=metadata
                 ),
                 user_id=current_user.id
             )
@@ -170,7 +173,7 @@ async def send_chat_message(
             message_create=MessageCreate(
                 role="assistant",
                 content=response,
-                metadata_={"model": "expert" if chat_request.is_expert else "fast"}
+                metadata={"model": "expert" if chat_request.is_expert else "fast"}
             ),
             user_id=current_user.id
         )

@@ -68,6 +68,10 @@ class ChatService:
         
         logger.info(f"[DB] Saved message id={db_message.id}, metadata_={db_message.metadata_}")
         
+        # 验证保存：立即查询确认
+        verify_msg = db.query(Message).filter(Message.id == db_message.id).first()
+        logger.info(f"[DB] Verify saved: id={verify_msg.id}, metadata_={verify_msg.metadata_}")
+        
         await ChatService._invalidate_messages_cache(conversation_id, user_id)
         return db_message
 

@@ -1,13 +1,17 @@
 
 from datetime import datetime
 from typing import Optional, List, Any, Dict
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, AliasChoices
 
 
 class MessageBase(BaseModel):
     role: str = Field(..., max_length=20)
     content: str
-    metadata_: Optional[Dict[str, Any]] = Field(None, alias="metadata")
+    metadata_: Optional[Dict[str, Any]] = Field(
+        None, 
+        validation_alias=AliasChoices('metadata_', 'metadata'),
+        serialization_alias="metadata"
+    )
 
     @field_validator('metadata_', mode='before')
     @classmethod
@@ -16,12 +20,7 @@ class MessageBase(BaseModel):
             return None
         if isinstance(v, dict):
             return v
-        try:
-            if hasattr(v, '__dict__'):
-                return {}
-            return None
-        except Exception:
-            return None
+        return None
 
 
 class MessageCreate(MessageBase):
@@ -40,6 +39,8 @@ class MessageResponse(MessageBase):
 
     class Config:
         from_attributes = True
+        populate_by_name = True
+        by_alias = True
 
 
 class ChatRequest(BaseModel):

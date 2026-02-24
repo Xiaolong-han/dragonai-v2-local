@@ -2,7 +2,8 @@
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
@@ -17,7 +18,7 @@ async def get_token_from_header(credentials: HTTPAuthorizationCredentials = Depe
 
 async def get_current_user(
     token: str = Depends(get_token_from_header),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -30,7 +31,11 @@ async def get_current_user(
     username: Optional[str] = payload.get("sub")
     if username is None:
         raise credentials_exception
-    user = db.query(User).filter(User.username == username).first()
+    
+    result = await db.execute(
+        select(User).where(User.username == username)
+    )
+    user = result.scalar_one_or_none()
     if user is None:
         raise credentials_exception
     return user

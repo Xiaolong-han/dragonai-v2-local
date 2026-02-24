@@ -2,8 +2,8 @@
 import logging
 import json
 from typing import List, Optional, AsyncGenerator, Dict, Any, Union
-from sqlalchemy import desc
-from sqlalchemy.orm import Session
+from sqlalchemy import select, desc
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.message import Message
 from app.models.conversation import Conversation
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class ChatService:
     @staticmethod
     async def get_messages(
-        db: Session,
+        db: AsyncSession,
         conversation_id: int,
         user_id: int,
         skip: int = 0,
@@ -27,32 +27,39 @@ class ChatService:
         cache_key = f"messages:conversation:{conversation_id}:user:{user_id}:skip:{skip}:limit:{limit}"
         
         async def fetch():
-            messages = db.query(Message).join(
-                Conversation, Message.conversation_id == Conversation.id
-            ).filter(
-                Message.conversation_id == conversation_id,
-                Conversation.user_id == user_id
-            ).order_by(
-                desc(Message.created_at)
-            ).offset(skip).limit(limit).all()
+            result = await db.execute(
+                select(Message)
+                .join(Conversation, Message.conversation_id == Conversation.id)
+                .where(
+                    Message.conversation_id == conversation_id,
+                    Conversation.user_id == user_id
+                )
+                .order_by(Message.created_at.asc())
+                .offset(skip)
+                .limit(limit)
+            )
+            messages = result.scalars().all()
             for m in messages:
                 logger.info(f"[DB] Fetched message id={m.id}, metadata_={m.metadata_}")
             return messages
         
         messages = await cache_aside(key=cache_key, ttl=3600, data_func=fetch)
-        return list(reversed(messages)) if messages else []
+        return messages if messages else []
 
     @staticmethod
     async def create_message(
-        db: Session,
+        db: AsyncSession,
         conversation_id: int,
         message_create: MessageCreate,
         user_id: int
     ) -> Optional[Message]:
-        conv = db.query(Conversation).filter(
-            Conversation.id == conversation_id,
-            Conversation.user_id == user_id
-        ).first()
+        result = await db.execute(
+            select(Conversation).where(
+                Conversation.id == conversation_id,
+                Conversation.user_id == user_id
+            )
+        )
+        conv = result.scalar_one_or_none()
         if not conv:
             return None
         
@@ -63,14 +70,17 @@ class ChatService:
             metadata_=message_create.metadata_
         )
         db.add(db_message)
-        db.commit()
-        db.refresh(db_message)
+        await db.flush()
+        await db.refresh(db_message)
         
         logger.info(f"[DB] Saved message id={db_message.id}, metadata_={db_message.metadata_}")
         
-        # 验证保存：立即查询确认
-        verify_msg = db.query(Message).filter(Message.id == db_message.id).first()
-        logger.info(f"[DB] Verify saved: id={verify_msg.id}, metadata_={verify_msg.metadata_}")
+        verify_result = await db.execute(
+            select(Message).where(Message.id == db_message.id)
+        )
+        verify_msg = verify_result.scalar_one_or_none()
+        if verify_msg:
+            logger.info(f"[DB] Verify saved: id={verify_msg.id}, metadata_={verify_msg.metadata_}")
         
         await ChatService._invalidate_messages_cache(conversation_id, user_id)
         return db_message
@@ -106,8 +116,6 @@ class ChatService:
             full_context = "\n\n".join(context_parts)
             logger.info(f"[CHAT] 上下文准备完成，长度: {len(full_context)}")
 
-            # 2. 创建Agent
-            # 延迟导入避免循环导入
             from app.agents.agent_factory import AgentFactory
             logger.info(f"[CHAT] 创建Agent: is_expert={is_expert}, enable_thinking={enable_thinking}")
             agent = AgentFactory.create_chat_agent(
@@ -116,28 +124,23 @@ class ChatService:
             )
             logger.info(f"[CHAT] Agent创建成功")
 
-            # 3. 获取Agent配置（用于对话状态持久化）
             config = AgentFactory.get_agent_config(str(conversation_id))
             logger.info(f"[CHAT] Agent配置: {config}")
 
-            # 4. 流式执行Agent (LangChain 1.0+ 方式)
-            # 使用 stream_mode=["messages", "updates"] 获取流式 token 和完整的工具调用
             logger.info(f"[CHAT] 开始流式执行Agent")
             tool_call_count = 0
             async for stream_mode, data in agent.astream(
                 {"messages": [{"role": "user", "content": full_context}]},
-                config,  # 传入config实现对话状态持久化
+                config,
                 stream_mode=["messages", "updates"]
             ):
                     
                 if stream_mode == "messages":
-                    # 流式 token 输出
                     message, metadata = data
                     formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
                     if formatted:
                         yield formatted
                 elif stream_mode == "updates":
-                    # 完整的步骤更新（包含工具调用结果）
                     logger.info(f"[CHAT-DEBUG] updates data: {data}")
                     for source, update in data.items():
                         logger.info(f"[CHAT-DEBUG] source={source}, update keys={update.keys() if isinstance(update, dict) else type(update)}")
@@ -377,16 +380,12 @@ class ChatService:
 
         last_message = messages[-1]
 
-        # 处理 LangChain 消息对象（如 HumanMessage, AIMessage, ToolMessage）
-        # 这些对象有 type 属性，而不是字典的 get 方法
         if hasattr(last_message, 'type'):
             message_type = last_message.type
 
-            # 处理AI消息 (AIMessage)
             if message_type == "ai":
                 content = last_message.content if hasattr(last_message, 'content') else ""
 
-                # 检查是否有思考内容
                 thinking_content = None
                 if include_thinking:
                     thinking_content = getattr(last_message, 'thinking_content', None) or \
@@ -400,7 +399,6 @@ class ChatService:
                     }
                 }
 
-            # 处理工具调用 (ToolMessage)
             elif message_type == "tool":
                 return {
                     "type": "tool_call",
@@ -410,11 +408,9 @@ class ChatService:
                     }
                 }
 
-            # 处理人类消息 (HumanMessage) - 通常不需要返回给前端
             elif message_type == "human":
                 return {"type": "human", "data": {"content": getattr(last_message, 'content', None)}}
 
-        # 处理字典格式的消息（如果存在）
         elif isinstance(last_message, dict):
             message_type = last_message.get("type", "")
 
@@ -447,7 +443,6 @@ class ChatService:
     @staticmethod
     async def _extract_document_content(file_path: str) -> str:
         """提取文档内容"""
-        # TODO: 实现文档内容提取
         return ""
 
     @staticmethod
@@ -486,7 +481,7 @@ class ChatService:
                     if not has_token_output:
                         content_data = event["data"].get("content")
                         if content_data:
-                            yield content_data
+                            yield event
                 elif event["type"] == "thinking":
                     in_thinking_mode = True
                     yield event

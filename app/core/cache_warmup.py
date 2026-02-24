@@ -1,6 +1,7 @@
 import logging
 from typing import List
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
 from app.core.redis import redis_client, cache_aside
@@ -25,7 +26,8 @@ class CacheWarmup:
         logger.info(f"[CACHE WARMUP] 开始预热会话列表缓存，限制 {limit} 条")
         
         async with get_db_session() as db:
-            active_users = db.query(User).limit(50).all()
+            result = await db.execute(select(User).limit(50))
+            active_users = result.scalars().all()
             
             for user in active_users:
                 user_id = user.id
@@ -33,12 +35,14 @@ class CacheWarmup:
                 cache_key = f"conversations:user:{user_id}:skip:0:limit:100"
                 
                 async def fetch_conversations():
-                    return db.query(Conversation).filter(
-                        Conversation.user_id == user_id
-                    ).order_by(
-                        Conversation.is_pinned.desc(),
-                        Conversation.updated_at.desc()
-                    ).offset(0).limit(100).all()
+                    result = await db.execute(
+                        select(Conversation)
+                        .where(Conversation.user_id == user_id)
+                        .order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
+                        .offset(0)
+                        .limit(100)
+                    )
+                    return result.scalars().all()
                 
                 try:
                     await cache_aside(
@@ -61,9 +65,10 @@ class CacheWarmup:
         logger.info("[CACHE WARMUP] 开始预热置顶会话详情缓存")
         
         async with get_db_session() as db:
-            pinned_conversations = db.query(Conversation).filter(
-                Conversation.is_pinned == True
-            ).all()
+            result = await db.execute(
+                select(Conversation).where(Conversation.is_pinned == True)
+            )
+            pinned_conversations = result.scalars().all()
             
             for conv in pinned_conversations:
                 user_id = conv.user_id
@@ -72,10 +77,14 @@ class CacheWarmup:
                 cache_key = f"conversation:{conversation_id}:{user_id}"
                 
                 async def fetch_conversation():
-                    return db.query(Conversation).filter(
-                        Conversation.id == conversation_id,
-                        Conversation.user_id == user_id
-                    ).first()
+                    result = await db.execute(
+                        select(Conversation)
+                        .where(
+                            Conversation.id == conversation_id,
+                            Conversation.user_id == user_id
+                        )
+                    )
+                    return result.scalar_one_or_none()
                 
                 try:
                     await cache_aside(
@@ -107,9 +116,12 @@ class CacheWarmup:
         async with get_db_session() as db:
             cutoff_time = datetime.utcnow() - timedelta(hours=hours)
             
-            recent_conversations = db.query(Conversation).filter(
-                Conversation.updated_at >= cutoff_time
-            ).limit(200).all()
+            result = await db.execute(
+                select(Conversation)
+                .where(Conversation.updated_at >= cutoff_time)
+                .limit(200)
+            )
+            recent_conversations = result.scalars().all()
             
             for conv in recent_conversations:
                 user_id = conv.user_id
@@ -118,10 +130,14 @@ class CacheWarmup:
                 cache_key = f"conversation:{conversation_id}:{user_id}"
                 
                 async def fetch_conversation():
-                    return db.query(Conversation).filter(
-                        Conversation.id == conversation_id,
-                        Conversation.user_id == user_id
-                    ).first()
+                    result = await db.execute(
+                        select(Conversation)
+                        .where(
+                            Conversation.id == conversation_id,
+                            Conversation.user_id == user_id
+                        )
+                    )
+                    return result.scalar_one_or_none()
                 
                 try:
                     await cache_aside(

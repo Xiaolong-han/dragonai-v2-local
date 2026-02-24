@@ -1,11 +1,12 @@
 
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import create_access_token
 from app.core.dependencies import get_current_active_user
+from app.core.rate_limit import limiter, AUTH_RATE_LIMIT
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
 from app.services.user_service import UserService, get_user_service
 from app.config import settings
@@ -14,9 +15,11 @@ router = APIRouter(prefix="/auth", tags=["认证"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit(AUTH_RATE_LIMIT)
 async def register(
+    request: Request,
     user: UserCreate, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service)
 ):
     db_user = await user_service.get_user_by_username(db, username=user.username)
@@ -38,9 +41,11 @@ async def register(
 
 
 @router.post("/login", response_model=Token)
+@limiter.limit(AUTH_RATE_LIMIT)
 async def login(
+    request: Request,
     user_login: UserLogin, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service)
 ):
     user = await user_service.authenticate_user(db, username=user_login.username, password=user_login.password)

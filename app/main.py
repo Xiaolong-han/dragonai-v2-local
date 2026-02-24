@@ -1,19 +1,47 @@
 import asyncio
 import os
-
+import uuid
 import logging
+import json
 from logging.handlers import RotatingFileHandler
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.core.redis import redis_client
 from app.core.cache_warmup import cache_warmup
 from app.core.exceptions import DragonAIException
+from app.core.database import close_db
+from app.core.rate_limit import limiter, rate_limit_exceeded_handler
+from app.core.tracing import RequestTracingMiddleware
 from app.agents.agent_factory import AgentFactory
-from app.api.v1 import auth, conversations, files, knowledge, tools, models, chat
+from app.api.v1 import auth, conversations, files, knowledge, tools, models, chat, monitoring
+
+
+class StructuredFormatter(logging.Formatter):
+    """结构化日志格式化器"""
+    
+    def format(self, record):
+        log_data = {
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+        }
+        
+        if hasattr(record, "request_id"):
+            log_data["request_id"] = record.request_id
+        
+        if record.exc_info:
+            log_data["exception"] = self.formatException(record.exc_info)
+        
+        return json.dumps(log_data, ensure_ascii=False)
 
 
 def setup_logging():
@@ -41,11 +69,18 @@ def setup_logging():
         encoding='utf-8'
     )
     file_handler.setLevel(log_level)
-    file_format = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    file_handler.setFormatter(file_format)
+    file_handler.setFormatter(console_format)
     logger.addHandler(file_handler)
+
+    structured_handler = RotatingFileHandler(
+        os.path.join(log_dir, 'structured.log'),
+        maxBytes=10*1024*1024,
+        backupCount=5,
+        encoding='utf-8'
+    )
+    structured_handler.setLevel(log_level)
+    structured_handler.setFormatter(StructuredFormatter())
+    logger.addHandler(structured_handler)
 
 
 async def dragonai_exception_handler(request: Request, exc: DragonAIException):
@@ -70,20 +105,16 @@ async def lifespan(app: FastAPI):
 
     await AgentFactory.init_checkpointer()
     logger.info("Checkpointer initialized")
-
     await redis_client.connect()
     logger.info("Redis connected")
-
     try:
         await cache_warmup.warmup_all()
     except Exception as e:
         logger.warning(f"[CACHE WARMUP] Cache warmup failed, continuing startup: {e}")
-
     yield
-
     await AgentFactory.close_checkpointer()
-
     await redis_client.close()
+    await close_db()
     logger.info("Shutting down DragonAI")
 
 
@@ -96,16 +127,27 @@ def create_app():
         lifespan=lifespan
     )
     
+    app.add_middleware(RequestTracingMiddleware)
+    
+    app.state.limiter = limiter
     app.add_exception_handler(DragonAIException, dragonai_exception_handler)
-
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+    
+    allowed_origins = ["*"] if settings.app_env == "development" else [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
+    
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(conversations.router, prefix="/api/v1")
     app.include_router(files.router, prefix="/api/v1")
@@ -113,13 +155,14 @@ def create_app():
     app.include_router(tools.router, prefix="/api/v1")
     app.include_router(models.router, prefix="/api/v1")
     app.include_router(chat.router, prefix="/api/v1")
-
+    app.include_router(monitoring.router, prefix="/api/v1")
+    
     @app.get("/")
     async def root():
         return {"message": "Welcome to DragonAI API", "version": "2.0.0"}
-
+    
     @app.get("/health")
     async def health_check():
         return {"status": "healthy"}
-
+    
     return app

@@ -8,6 +8,7 @@ import redis.asyncio as redis
 
 from app.config import settings
 from app.utils.serializers import is_sqlalchemy_model, model_to_dict
+from app.core.cache_metrics import cache_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class RedisClient:
 
     async def connect(self):
         if self._client is None:
-            self._client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+            self._client = redis.from_url(self.redis_url, decode_responses=True)
 
     async def disconnect(self):
         if self._client:
@@ -119,8 +120,10 @@ async def cache_aside(
     if cached is not None:
         if cached == NULL_VALUE_MARKER:
             logger.info(f"[CACHE HIT NULL] 空值缓存命中: {key}")
+            cache_metrics.record_null_hit()
             return None
         logger.info(f"[CACHE HIT] 数据从缓存获取: {key}")
+        cache_metrics.record_hit()
         return cached
 
     if enable_lock:
@@ -150,6 +153,7 @@ async def cache_aside(
             pass
 
     logger.info(f"[CACHE MISS] 缓存未命中，从数据库获取: {key}")
+    cache_metrics.record_miss()
     
     if data_func is None:
         if enable_lock:

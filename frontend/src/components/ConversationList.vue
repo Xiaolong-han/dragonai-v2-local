@@ -184,12 +184,12 @@ async function handleConfirmDelete() {
 }
 
 .conversations::-webkit-scrollbar-thumb {
-  background: #d9d9d9;
+  background: var(--border-color);
   border-radius: 3px;
 }
 
 .conversations::-webkit-scrollbar-thumb:hover {
-  background: #bfbfbf;
+  background: var(--text-tertiary);
 }
 
 .conversation-item {
@@ -204,7 +204,7 @@ async function handleConfirmDelete() {
 }
 
 .conversation-item:hover {
-  background: #f5f7fa;
+  background: var(--bg-tertiary);
 }
 
 .conversation-content {
@@ -217,25 +217,25 @@ async function handleConfirmDelete() {
 }
 
 .conversation-content.active {
-  background: #e6f4ff;
+  background: var(--primary-light-bg, rgba(45, 125, 255, 0.1));
   border-radius: 6px;
   padding: 8px 12px;
   margin: -4px -4px;
 }
 
 .conversation-content.active .chat-icon {
-  color: #1677ff;
+  color: var(--primary-color);
 }
 
 .chat-icon {
   flex-shrink: 0;
-  color: #8c8c8c;
+  color: var(--text-tertiary);
   font-size: 16px;
 }
 
 .pin-icon {
   flex-shrink: 0;
-  color: #faad14;
+  color: var(--warning-color, #faad14);
   font-size: 14px;
 }
 
@@ -245,11 +245,11 @@ async function handleConfirmDelete() {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
-  color: #1f2329;
+  color: var(--text-primary);
 }
 
 .conversation-content.active .title-text {
-  color: #1677ff;
+  color: var(--primary-color);
   font-weight: 500;
 }
 
@@ -267,10 +267,10 @@ async function handleConfirmDelete() {
 
 .action-btn {
   padding: 4px;
-  color: #8c8c8c;
+  color: var(--text-tertiary);
 }
 
 .action-btn:hover {
-  color: #1677ff;
+  color: var(--primary-color);
 }
 </style>

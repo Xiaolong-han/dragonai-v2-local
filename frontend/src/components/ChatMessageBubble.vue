@@ -154,10 +154,11 @@ function toggleThinking() {
 }
 
 .user-message .message-text {
-  background: var(--primary-color);
-  color: white;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   border-bottom-right-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
 }
 
 .assistant-message .message-text {
@@ -165,6 +166,7 @@ function toggleThinking() {
   color: var(--text-primary);
   border-bottom-left-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
 }
 
 .message-text :deep(p) {
@@ -178,10 +180,11 @@ function toggleThinking() {
 .message-text :deep(pre) {
   margin: 12px 0;
   padding: 16px;
-  background: #1e1e1e;
+  background: var(--bg-tertiary);
   border-radius: var(--radius-md);
   overflow-x: auto;
   box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
 }
 
 .message-text :deep(code) {
@@ -192,12 +195,12 @@ function toggleThinking() {
 .message-text :deep(pre code) {
   background: transparent;
   padding: 0;
-  color: #d4d4d4;
+  color: var(--text-primary);
   line-height: 1.6;
 }
 
 .assistant-message .message-text :deep(pre) {
-  background: #1e1e1e;
+  background: var(--bg-tertiary);
 }
 
 .user-message .message-text :deep(pre) {
@@ -308,8 +311,9 @@ function toggleThinking() {
 }
 
 .message-time {
-  font-size: 11px;
-  color: var(--text-tertiary);
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.8;
 }
 
 .user-message .message-time {
@@ -342,9 +346,12 @@ function toggleThinking() {
 
 .message-text :deep(.image-container img) {
   max-width: 100%;
+  max-height: 400px;
+  width: auto;
   height: auto;
   border-radius: 8px;
   display: block;
+  object-fit: contain;
 }
 
 .message-text :deep(.image-overlay) {
@@ -386,10 +393,10 @@ function toggleThinking() {
 
 .thinking-section {
   margin-bottom: 12px;
-  border: 1px solid #e6a23c;
+  border: 1px solid var(--warning-color, #e6a23c);
   border-radius: 8px;
   overflow: hidden;
-  background: linear-gradient(135deg, #fdf6ec 0%, #fff7e6 100%);
+  background: var(--warning-bg, linear-gradient(135deg, #fdf6ec 0%, #fff7e6 100%));
 }
 
 .thinking-header {
@@ -397,17 +404,17 @@ function toggleThinking() {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: #fdf6ec;
+  background: var(--warning-bg-light, #fdf6ec);
   cursor: pointer;
   font-size: 13px;
-  color: #e6a23c;
+  color: var(--warning-color, #e6a23c);
   font-weight: 500;
   user-select: none;
   transition: background 0.2s;
 }
 
 .thinking-header:hover {
-  background: #faecd8;
+  background: var(--warning-bg-hover, #faecd8);
 }
 
 .thinking-header .toggle-icon {
@@ -421,8 +428,8 @@ function toggleThinking() {
 
 .thinking-content {
   padding: 12px;
-  background: rgba(255, 255, 255, 0.8);
-  border-top: 1px solid #f5dab1;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--warning-border, #f5dab1);
   max-height: 300px;
   overflow-y: auto;
 }
@@ -430,7 +437,7 @@ function toggleThinking() {
 .thinking-text {
   font-size: 13px;
   line-height: 1.7;
-  color: #606266;
+  color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
 }

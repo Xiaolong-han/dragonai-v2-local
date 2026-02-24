@@ -76,6 +76,22 @@
       <!-- 底部工具栏 -->
       <div class="input-toolbar">
         <div class="toolbar-left">
+          <!-- 上传按钮 -->
+          <el-upload
+            ref="uploadRef"
+            class="upload-btn"
+            :show-file-list="false"
+            :before-upload="handleBeforeUpload"
+            :http-request="handleUpload"
+            accept="image/*,.pdf,.doc,.docx,.txt,.md"
+          >
+            <div class="tool-item" title="上传文件">
+              <el-icon :size="18"><Paperclip /></el-icon>
+            </div>
+          </el-upload>
+
+          <div class="divider"></div>
+
           <!-- 模型选择按钮 -->
           <el-dropdown trigger="click" @command="selectModel">
             <div class="tool-item model-select" :class="{ 'is-expert': isExpert }" title="选择模型">
@@ -106,35 +122,6 @@
             <el-icon :size="18"><MagicStick /></el-icon>
             <span>深度思考</span>
           </div>
-
-          <div class="divider"></div>
-
-          <!-- 上传按钮 -->
-          <el-upload
-            ref="imageUploadRef"
-            class="upload-btn"
-            :show-file-list="false"
-            :before-upload="handleBeforeUploadImage"
-            :http-request="handleUploadImage"
-            accept="image/*"
-          >
-            <div class="tool-item" title="上传图片">
-              <el-icon :size="18"><Picture /></el-icon>
-            </div>
-          </el-upload>
-
-          <el-upload
-            ref="fileUploadRef"
-            class="upload-btn"
-            :show-file-list="false"
-            :before-upload="handleBeforeUploadFile"
-            :http-request="handleUploadFile"
-            accept=".pdf,.doc,.docx,.txt,.md"
-          >
-            <div class="tool-item" title="上传文件">
-              <el-icon :size="18"><Folder /></el-icon>
-            </div>
-          </el-upload>
 
           <div class="divider"></div>
 
@@ -194,8 +181,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { 
   Promotion, 
-  Picture, 
-  Folder, 
+  Paperclip, 
   Close, 
   Document, 
   More,
@@ -280,8 +266,7 @@ const moreTools = computed(() => tools.slice(3))
 
 const inputValue = ref<string>('')
 const uploadedFiles = ref<UploadedFile[]>([])
-const imageUploadRef = ref()
-const fileUploadRef = ref()
+const uploadRef = ref()
 const inputRef = ref()
 const activeTool = ref<Tool | null>(null)
 const showToolMenu = ref(false)
@@ -349,58 +334,36 @@ function toggleThinking() {
   enableThinking.value = !enableThinking.value
 }
 
-function handleBeforeUploadImage(file: File): boolean {
+function handleBeforeUpload(file: File): boolean {
   const isImage = file.type.startsWith('image/')
-  if (!isImage) {
-    ElMessage.error('只能上传图片文件！')
-    return false
-  }
-  const isLt10M = file.size / 1024 / 1024 < 10
-  if (!isLt10M) {
-    ElMessage.error('图片大小不能超过 10MB！')
-    return false
-  }
-  return true
-}
-
-async function handleUploadImage(options: any) {
-  const file = options.file
-  const uploadedFile: UploadedFile = {
-    id: generateId(),
-    file,
-    name: file.name,
-    type: file.type,
-    size: file.size,
-    preview: URL.createObjectURL(file)
-  }
-  uploadedFiles.value.push(uploadedFile)
-}
-
-function handleBeforeUploadFile(file: File): boolean {
   const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.md']
   const fileName = file.name.toLowerCase()
-  const isValid = allowedTypes.some(type => fileName.endsWith(type))
-  if (!isValid) {
-    ElMessage.error('只能上传 PDF、Word、TXT 或 Markdown 文件！')
+  const isValidDoc = allowedTypes.some(type => fileName.endsWith(type))
+
+  if (!isImage && !isValidDoc) {
+    ElMessage.error('只能上传图片、PDF、Word、TXT 或 Markdown 文件！')
     return false
   }
-  const isLt50M = file.size / 1024 / 1024 < 50
-  if (!isLt50M) {
-    ElMessage.error('文件大小不能超过 50MB！')
+
+  const maxSize = isImage ? 10 : 50
+  if (file.size / 1024 / 1024 > maxSize) {
+    ElMessage.error(`${isImage ? '图片' : '文件'}大小不能超过 ${maxSize}MB！`)
     return false
   }
+
   return true
 }
 
-async function handleUploadFile(options: any) {
+async function handleUpload(options: any) {
   const file = options.file
+  const isImage = file.type.startsWith('image/')
   const uploadedFile: UploadedFile = {
     id: generateId(),
     file,
     name: file.name,
     type: file.type,
     size: file.size,
-    preview: ''
+    preview: isImage ? URL.createObjectURL(file) : ''
   }
   uploadedFiles.value.push(uploadedFile)
 }
@@ -482,26 +445,29 @@ function handleKeydown(event: KeyboardEvent) {
 .chat-input-wrapper {
   padding: 16px 24px 24px;
   background: transparent;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .chat-input-card {
-  background: white;
+  background: var(--bg-primary);
   border-radius: 16px;
-  border: 1px solid #e4e7ed;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
   overflow: visible;
   transition: all 0.3s ease;
   position: relative;
 }
 
 .chat-input-card:focus-within {
-  border-color: #409eff;
-  box-shadow: 0 2px 16px rgba(64, 158, 255, 0.15);
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 20px rgba(45, 125, 255, 0.2);
 }
 
 .chat-input-card.tool-mode {
-  border-color: #409eff;
-  background: linear-gradient(to bottom, #f0f9ff 0%, #ffffff 100%);
+  border-color: var(--primary-color);
+  background: var(--bg-secondary);
 }
 
 /* 工具指示器 */
@@ -518,11 +484,11 @@ function handleKeydown(event: KeyboardEvent) {
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  background: #ecf5ff;
-  border: 1px solid #d9ecff;
+  background: var(--primary-light-bg, rgba(45, 125, 255, 0.1));
+  border: 1px solid var(--primary-light-border, rgba(45, 125, 255, 0.2));
   border-radius: 6px;
   font-size: 13px;
-  color: #409eff;
+  color: var(--primary-color);
   font-weight: 500;
 }
 
@@ -542,7 +508,7 @@ function handleKeydown(event: KeyboardEvent) {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 /* 附件区域 */
@@ -558,9 +524,9 @@ function handleKeydown(event: KeyboardEvent) {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: #f5f7fa;
+  background: var(--bg-secondary);
   border-radius: 8px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--border-color);
   font-size: 13px;
 }
 
@@ -572,7 +538,7 @@ function handleKeydown(event: KeyboardEvent) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--bg-primary);
   flex-shrink: 0;
 }
 
@@ -616,7 +582,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 .message-textarea :deep(.el-textarea__inner::placeholder) {
-  color: #a8abb2;
+  color: var(--text-tertiary);
 }
 
 /* 工具选择菜单 */
@@ -625,10 +591,10 @@ function handleKeydown(event: KeyboardEvent) {
   bottom: 100%;
   left: 16px;
   margin-bottom: 8px;
-  background: white;
+  background: var(--bg-primary);
   border-radius: 12px;
-  border: 1px solid #e4e7ed;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
   min-width: 180px;
   max-height: 280px;
   overflow-y: auto;
@@ -638,8 +604,8 @@ function handleKeydown(event: KeyboardEvent) {
 .tool-menu-header {
   padding: 12px 16px;
   font-size: 13px;
-  color: #909399;
-  border-bottom: 1px solid #f0f0f0;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border-light);
   font-weight: 500;
 }
 
@@ -650,17 +616,17 @@ function handleKeydown(event: KeyboardEvent) {
   padding: 10px 16px;
   cursor: pointer;
   font-size: 14px;
-  color: #303133;
+  color: var(--text-primary);
   transition: all 0.2s;
 }
 
 .tool-menu-item:hover {
-  background: #f5f7fa;
+  background: var(--bg-secondary);
 }
 
 .tool-menu-item.active {
-  background: #ecf5ff;
-  color: #409eff;
+  background: var(--primary-light-bg, rgba(45, 125, 255, 0.1));
+  color: var(--primary-color);
 }
 
 /* 底部工具栏 */
@@ -669,7 +635,7 @@ function handleKeydown(event: KeyboardEvent) {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px 12px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-light);
 }
 
 .toolbar-left {
@@ -691,43 +657,43 @@ function handleKeydown(event: KeyboardEvent) {
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: #606266;
+  color: var(--text-secondary);
   transition: all 0.2s ease;
 }
 
 .tool-item:hover {
-  background: #f5f7fa;
-  color: #409eff;
+  background: var(--bg-secondary);
+  color: var(--primary-color);
 }
 
 .tool-item.active {
-  background: #ecf5ff;
-  color: #409eff;
+  background: var(--primary-light-bg, rgba(45, 125, 255, 0.1));
+  color: var(--primary-color);
 }
 
 .tool-item.model-select.is-expert {
-  background: #fef0f0;
-  color: #f56c6c;
-  border: 1px solid #fbc4c4;
+  background: var(--danger-light-bg, rgba(245, 108, 108, 0.1));
+  color: var(--danger-color, #f56c6c);
+  border: 1px solid var(--danger-light-border, rgba(245, 108, 108, 0.2));
 }
 
 .tool-item.thinking-toggle.active {
-  background: #f0f9eb;
-  color: #67c23a;
-  border: 1px solid #c2e7b0;
+  background: var(--success-light-bg, rgba(103, 194, 58, 0.1));
+  color: var(--success-color, #67c23a);
+  border: 1px solid var(--success-light-border, rgba(103, 194, 58, 0.2));
 }
 
 .tool-item.model-select:hover,
 .tool-item.thinking-toggle:hover {
-  background: #f5f7fa;
+  background: var(--bg-secondary);
 }
 
 .tool-item.model-select.is-expert:hover {
-  background: #fef0f0;
+  background: var(--danger-light-bg, rgba(245, 108, 108, 0.1));
 }
 
 .tool-item.thinking-toggle.active:hover {
-  background: #f0f9eb;
+  background: var(--success-light-bg, rgba(103, 194, 58, 0.1));
 }
 
 .upload-btn {
@@ -741,7 +707,7 @@ function handleKeydown(event: KeyboardEvent) {
 .divider {
   width: 1px;
   height: 16px;
-  background: #dcdfe6;
+  background: var(--border-color);
   margin: 0 4px;
 }
 

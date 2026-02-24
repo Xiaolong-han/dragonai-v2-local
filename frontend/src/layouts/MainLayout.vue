@@ -37,6 +37,9 @@
       <header class="main-header">
         <div class="header-content">
           <slot name="header-left"></slot>
+          <div class="header-right">
+            <ThemeSwitcher />
+          </div>
         </div>
       </header>
       <div class="content-area">
@@ -52,6 +55,7 @@ import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { Plus, User, SwitchButton } from '@element-plus/icons-vue'
 import ConversationList from '@/components/ConversationList.vue'
+import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 import { useConversationStore } from '@/stores/conversation'
 
 const authStore = useAuthStore()
@@ -212,6 +216,12 @@ const handleNewConversation = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .content-area {

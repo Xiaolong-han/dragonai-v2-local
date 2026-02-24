@@ -123,7 +123,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #f5f7fa;
+  background: var(--bg-secondary);
   overflow: hidden;
 }
 

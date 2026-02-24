@@ -523,6 +523,8 @@ class ChatService:
                     full_response.append(event["data"]["content"])
                 elif event["type"] == "tool_call":
                     full_response.append(f"\n[使用工具: {event['data']['name']}]\n")
+                elif event["type"] == "error":
+                    return f"Error: {event['data'].get('message', 'Unknown error')}"
 
             return "".join(full_response)
         except Exception as e:

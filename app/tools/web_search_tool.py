@@ -1,12 +1,14 @@
 """联网搜索工具"""
 
 from langchain_core.tools import tool
-from langchain_community.tools.tavily_search import TavilySearchResults
+from tavily import TavilyClient
 from app.config import settings
+
+tavily_client = TavilyClient(api_key=settings.tavily_api_key)
 
 
 @tool
-async def web_search(query: str) -> str:
+async def web_search(query: str, max_results: int = 5) -> str:
     """
     使用联网搜索获取最新信息。
 
@@ -14,17 +16,12 @@ async def web_search(query: str) -> str:
 
     Args:
         query: 搜索查询语句
+        max_results: 返回结果数量，默认5条
 
     Returns:
-        搜索结果的格式化摘要
+        搜索结果
     """
-    if not settings.tavily_api_key:
-        return "错误：未配置Tavily API密钥，无法执行联网搜索。"
-
-    search_tool = TavilySearchResults(
-        api_key=settings.tavily_api_key,
-        max_results=5,
-        search_depth="advanced"
-    )
-    results = await search_tool.ainvoke({"query": query})
-    return str(results)
+    results = tavily_client.search(query, search_depth="advanced",
+                                   include_raw_content=False, 
+                                   max_results=max_results, topic="general")
+    return results

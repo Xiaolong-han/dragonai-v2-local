@@ -24,8 +24,7 @@ async def translate_text(text: str, target_lang: str, source_lang: str = None) -
     source_info = source_lang if source_lang else "自动检测"
     
     messages = [
-        {"role": "system", "content": "你是专业翻译助手。准确翻译文本，保持原意和语气，只输出翻译结果。"},
-        {"role": "user", "content": f"将以下{source_info}文本翻译成{target_lang}：\n\n{text}"}
+        {"role": "user", "content": f"你是专业翻译助手。准确翻译文本，保持原意和语气，只输出翻译结果。将以下{source_info}文本翻译成{target_lang}：\n\n{text}"}
     ]
     
     result = await model.ainvoke(messages)

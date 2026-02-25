@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # 通义千问API配置
     qwen_api_key: str = ""
     qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    
+ 
     # 图像生成API配置（阿里云百炼多模态生成API）
     qwen_image_base_url: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
 
@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     
     # Embedding模型配置
     model_embedding: str = "text-embedding-v4"
+    
+    # Agent配置
+    agent_recursion_limit: int = 10  # Agent递归深度限制（工具调用最大轮次）
 
     class Config:
         env_file = ".env"

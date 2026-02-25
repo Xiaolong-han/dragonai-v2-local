@@ -135,11 +135,19 @@ class AgentFactory:
 
     @classmethod
     def get_agent_config(cls, conversation_id: str) -> dict:
-        """获取Agent配置 - 用于区分不同对话线程"""
+        """获取Agent配置 - 用于区分不同对话线程
+        
+        Args:
+            conversation_id: 对话ID
+            
+        Returns:
+            配置字典，包含 thread_id 和 recursion_limit
+        """
         return {
             "configurable": {
                 "thread_id": f"conversation_{conversation_id}"
-            }
+            },
+            "recursion_limit": settings.agent_recursion_limit
         }
 
     @classmethod

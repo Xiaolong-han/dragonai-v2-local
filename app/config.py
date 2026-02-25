@@ -31,12 +31,14 @@ class Settings(BaseSettings):
 
     storage_dir: str = "./storage"
 
+    skills_dir: str = "./app/skills"
+
     log_level: str = "INFO"
     log_dir: str = "./logs"
 
     # 模型配置 - 开发者可自定义模型映射
     # 通用模型配置"qwen-flash-2025-07-28" 
-    model_general_fast: str = "qwen-turbo-latest" 
+    model_general_fast: str = "qwen-plus" 
     model_general_expert: str = "qwen3-max"
     
     # 视觉模型配置

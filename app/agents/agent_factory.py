@@ -1,6 +1,7 @@
-"""Agent工厂 - 使用LangChain 1.0+推荐的create_agent"""
+"""Agent工厂 - 使用LangChain Deep Agent with Skills"""
 
 import logging
+import os
 from typing import Optional, Union
 
 from langchain.agents import create_agent
@@ -16,46 +17,13 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """你是一个强大的AI助手，能够帮助用户处理各种任务。
 
-你可以使用以下工具来帮助用户：
-
-1. **search_knowledge_base** - 从本地知识库搜索信息
-   - 当用户询问项目文档、技术规范、内部资料时使用
-
-2. **web_search** - 联网搜索最新信息
-   - 当用户询问新闻、实时信息、公开资料时使用
-
-3. **ocr_document** - 识别图片中的文字
-   - 当用户上传包含文字的图片时使用
-
-4. **understand_image** - 理解图片内容
-   - 当用户上传图片并询问图片内容时使用
-
-5. **generate_image** - 生成图像
-   - 当用户要求生成、绘制、创建图像时使用
-
-6. **edit_image** - 编辑图像
-   - 当用户要求修改、编辑已有图像时使用
-
-7. **code_assist** - 编程协助
-   - 当用户需要写代码、调试代码、解释代码时使用
-
-8. **translate_text** - 翻译文本
-   - 当用户需要翻译内容时使用
-
-**消息前缀识别规则**：
-用户可能使用特定前缀来明确指定要使用的工具，请根据前缀自动调用相应工具：
-- "翻译：xxx" 或 "翻译xxx" -> 调用 translate_text 工具，目标语言默认为中文(如果不是中文则翻译成中文)
-- "翻译成英文：xxx" -> 调用 translate_text 工具，target_lang="en"
-- "翻译成日文：xxx" -> 调用 translate_text 工具，target_lang="ja"
-- "编程：xxx" 或 "代码：xxx" -> 调用 code_assist 工具
-- "生成图像：xxx" 或 "画图：xxx" -> 调用 generate_image 工具
-- "编辑图像：xxx" 或 "修改图片：xxx" -> 调用 edit_image 工具
+你可以使用多种工具来帮助用户，工具的功能说明已内置在系统中。
 
 **工具调用重要规则**：
 - 如果调用工具缺少必填参数，不要调用工具，应该先询问用户提供缺失的信息
-- 根据消息前缀快速识别用户意图，直接调用相应工具
+- 根据用户需求选择最合适的工具，避免不必要的工具调用
 
-请根据用户的需求，合理选择和使用这些工具。如果用户请求不明确，请主动询问以澄清需求。
+请根据用户的需求，合理选择和使用工具。如果用户请求不明确，请主动询问以澄清需求。
 """
 
 

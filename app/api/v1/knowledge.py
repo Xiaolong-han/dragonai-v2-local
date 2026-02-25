@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from app.services.knowledge_service import KnowledgeService, get_knowledge_service
 
-router = APIRouter()
+router = APIRouter(prefix="/knowledge", tags=["知识库"])
 
 
 class SearchRequest(BaseModel):
@@ -44,7 +44,7 @@ async def upload_document(
         
         return UploadResponse(
             success=True,
-            message=f"Document uploaded successfully",
+            message="Document uploaded successfully",
             chunk_count=chunk_count,
         )
     except Exception as e:

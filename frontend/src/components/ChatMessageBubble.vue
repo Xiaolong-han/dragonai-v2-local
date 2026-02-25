@@ -21,7 +21,16 @@
         </div>
       </div>
       
-      <div class="message-text" v-html="formattedContent"></div>
+      <div v-if="!isLoading" class="message-text" v-html="formattedContent"></div>
+      
+      <div v-if="isLoading" class="loading-indicator">
+        <div class="loading-dots">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+        <span class="loading-text">AI 正在思考中...</span>
+      </div>
       <div class="message-footer">
         <div class="message-time">{{ formatTime(message.created_at) }}</div>
         <div class="message-actions" v-if="message.role === 'assistant' && !message.is_streaming">
@@ -63,6 +72,13 @@ const emit = defineEmits<{
 
 const formattedContent = computed(() => {
   return renderMarkdown(props.message.content)
+})
+
+const isLoading = computed(() => {
+  return props.message.role === 'assistant' && 
+         props.message.is_streaming && 
+         !props.message.content && 
+         !props.message.thinking_content
 })
 
 function formatTime(dateString: string): string {
@@ -457,5 +473,65 @@ function toggleThinking() {
 
 .thinking-content::-webkit-scrollbar-thumb:hover {
   background: #cf9236;
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.loading-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.loading-dots .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  animation: bounce 1.4s ease-in-out infinite both;
+}
+
+.loading-dots .dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.loading-dots .dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.loading-dots .dot:nth-child(3) {
+  animation-delay: 0s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+.loading-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 </style>

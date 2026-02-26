@@ -33,7 +33,7 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
         
         response.headers["X-Request-ID"] = request_id
         
-        logger.info(
+        logger.debug(
             f"[REQUEST] method={request.method} path={request.url.path} "
             f"status_code={response.status_code} request_id={request_id}"
         )

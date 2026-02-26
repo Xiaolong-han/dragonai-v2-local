@@ -2,8 +2,6 @@ import asyncio
 import os
 import uuid
 import logging
-import json
-from logging.handlers import RotatingFileHandler
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,70 +15,9 @@ from app.core.exceptions import DragonAIException
 from app.core.database import close_db
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.core.tracing import RequestTracingMiddleware
+from app.core.logging_config import setup_logging
 from app.agents.agent_factory import AgentFactory
 from app.api.v1 import auth, conversations, files, knowledge, tools, models, chat, monitoring
-
-
-class StructuredFormatter(logging.Formatter):
-    """结构化日志格式化器"""
-    
-    def format(self, record):
-        log_data = {
-            "timestamp": self.formatTime(record),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno,
-        }
-        
-        if hasattr(record, "request_id"):
-            log_data["request_id"] = record.request_id
-        
-        if record.exc_info:
-            log_data["exception"] = self.formatException(record.exc_info)
-        
-        return json.dumps(log_data, ensure_ascii=False)
-
-
-def setup_logging():
-    log_dir = settings.log_dir
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
-
-    logger = logging.getLogger()
-    logger.setLevel(log_level)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(log_level)
-    console_format = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    console_handler.setFormatter(console_format)
-    logger.addHandler(console_handler)
-
-    file_handler = RotatingFileHandler(
-        os.path.join(log_dir, 'app.log'),
-        maxBytes=10*1024*1024,
-        backupCount=5,
-        encoding='utf-8'
-    )
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(console_format)
-    logger.addHandler(file_handler)
-
-    structured_handler = RotatingFileHandler(
-        os.path.join(log_dir, 'structured.log'),
-        maxBytes=10*1024*1024,
-        backupCount=5,
-        encoding='utf-8'
-    )
-    structured_handler.setLevel(log_level)
-    structured_handler.setFormatter(StructuredFormatter())
-    logger.addHandler(structured_handler)
 
 
 async def dragonai_exception_handler(request: Request, exc: DragonAIException):
@@ -99,7 +36,11 @@ async def dragonai_exception_handler(request: Request, exc: DragonAIException):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    setup_logging()
+    setup_logging(
+        log_level=settings.log_level,
+        log_dir=settings.log_dir,
+        app_env=settings.app_env,
+    )
     logger = logging.getLogger()
     logger.info("Starting DragonAI...")
 

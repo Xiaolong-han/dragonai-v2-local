@@ -50,7 +50,7 @@ class RedisClient:
     async def set(self, key: str, value: Any, ttl: Optional[int] = None):
         if is_sqlalchemy_model(value) or (isinstance(value, list) and value and is_sqlalchemy_model(value[0])):
             value = model_to_dict(value)
-            logger.info(f"[REDIS] Serialized value for {key}: {value}")
+            logger.debug(f"[REDIS] Serialized value for {key}")
         
         if isinstance(value, (dict, list)):
             value = json.dumps(value)
@@ -84,9 +84,7 @@ async def invalidate_cache_by_pattern(pattern: str):
     
     if all_keys:
         await redis_client.client.delete(*all_keys)
-        logger.info(f"[CACHE DELETE] 已删除缓存: pattern={pattern}, keys={len(all_keys)}")
-    else:
-        logger.info(f"[CACHE DELETE] 未找到缓存: pattern={pattern}")
+        logger.debug(f"[CACHE DELETE] 已删除缓存: pattern={pattern}, keys={len(all_keys)}")
 
 
 async def cache_aside(
@@ -119,10 +117,10 @@ async def cache_aside(
     cached = await redis_client.get(key)
     if cached is not None:
         if cached == NULL_VALUE_MARKER:
-            logger.info(f"[CACHE HIT NULL] 空值缓存命中: {key}")
+            logger.debug(f"[CACHE HIT NULL] 空值缓存命中: {key}")
             cache_metrics.record_null_hit()
             return None
-        logger.info(f"[CACHE HIT] 数据从缓存获取: {key}")
+        logger.debug(f"[CACHE HIT] 数据从缓存获取: {key}")
         cache_metrics.record_hit()
         return cached
 
@@ -131,7 +129,7 @@ async def cache_aside(
         lock_acquired = await redis_client.acquire_lock(lock_key, lock_expire_seconds)
         
         if not lock_acquired:
-            logger.info(f"[CACHE LOCK] 等待其他线程加载: {key}")
+            logger.debug(f"[CACHE LOCK] 等待其他线程加载: {key}")
             await asyncio.sleep(0.1)
             return await cache_aside(
                 key, ttl, data_func,
@@ -145,14 +143,14 @@ async def cache_aside(
             cached = await redis_client.get(key)
             if cached is not None:
                 if cached == NULL_VALUE_MARKER:
-                    logger.info(f"[CACHE HIT NULL] 空值缓存命中(双重检查): {key}")
+                    logger.debug(f"[CACHE HIT NULL] 空值缓存命中(双重检查): {key}")
                     return None
-                logger.info(f"[CACHE HIT] 数据从缓存获取(双重检查): {key}")
+                logger.debug(f"[CACHE HIT] 数据从缓存获取(双重检查): {key}")
                 return cached
         except Exception:
             pass
 
-    logger.info(f"[CACHE MISS] 缓存未命中，从数据库获取: {key}")
+    logger.debug(f"[CACHE MISS] 缓存未命中: {key}")
     cache_metrics.record_miss()
     
     if data_func is None:
@@ -169,11 +167,11 @@ async def cache_aside(
         
         if data is not None:
             await redis_client.set(key, data, ttl=actual_ttl)
-            logger.info(f"[CACHE SET] 数据已写入缓存: {key}, TTL={actual_ttl}s")
+            logger.debug(f"[CACHE SET] 数据已写入缓存: {key}, TTL={actual_ttl}s")
         else:
             if enable_null_cache:
                 await redis_client.set(key, NULL_VALUE_MARKER, ttl=null_cache_ttl)
-                logger.info(f"[CACHE SET NULL] 空值已写入缓存: {key}, TTL={null_cache_ttl}s")
+                logger.debug(f"[CACHE SET NULL] 空值已写入缓存: {key}, TTL={null_cache_ttl}s")
         
         return data
     finally:

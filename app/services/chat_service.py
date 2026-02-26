@@ -39,8 +39,6 @@ class ChatService:
                 .limit(limit)
             )
             messages = result.scalars().all()
-            for m in messages:
-                logger.info(f"[DB] Fetched message id={m.id}, metadata_={m.metadata_}")
             return messages
         
         messages = await cache_aside(key=cache_key, ttl=3600, data_func=fetch)
@@ -73,14 +71,14 @@ class ChatService:
         await db.flush()
         await db.refresh(db_message)
         
-        logger.info(f"[DB] Saved message id={db_message.id}, metadata_={db_message.metadata_}")
+        logger.debug(f"[DB] Saved message id={db_message.id}")
         
         verify_result = await db.execute(
             select(Message).where(Message.id == db_message.id)
         )
         verify_msg = verify_result.scalar_one_or_none()
         if verify_msg:
-            logger.info(f"[DB] Verify saved: id={verify_msg.id}, metadata_={verify_msg.metadata_}")
+            logger.debug(f"[DB] Verify saved: id={verify_msg.id}")
         
         await ChatService._invalidate_messages_cache(conversation_id, user_id)
         return db_message
@@ -114,20 +112,18 @@ class ChatService:
                     context_parts.append(f"[文档内容: {doc_content}]")
 
             full_context = "\n\n".join(context_parts)
-            logger.info(f"[CHAT] 上下文准备完成，长度: {len(full_context)}")
+            logger.debug(f"[CHAT] 上下文准备完成，长度: {len(full_context)}")
 
             from app.agents.agent_factory import AgentFactory
-            logger.info(f"[CHAT] 创建Agent: is_expert={is_expert}, enable_thinking={enable_thinking}")
+            logger.debug(f"[CHAT] 创建Agent: is_expert={is_expert}, enable_thinking={enable_thinking}")
             agent = AgentFactory.create_chat_agent(
                 is_expert=is_expert,
                 enable_thinking=enable_thinking
             )
-            logger.info(f"[CHAT] Agent创建成功")
 
             config = AgentFactory.get_agent_config(str(conversation_id))
-            logger.info(f"[CHAT] Agent配置: {config}")
 
-            logger.info(f"[CHAT] 开始流式执行Agent")
+            logger.debug(f"[CHAT] 开始流式执行Agent")
             tool_call_count = 0
             async for stream_mode, data in agent.astream(
                 {"messages": [{"role": "user", "content": full_context}]},
@@ -141,12 +137,12 @@ class ChatService:
                     if formatted:
                         yield formatted
                 elif stream_mode == "updates":
-                    logger.info(f"[CHAT-DEBUG] updates data: {data}")
+                    logger.debug(f"[CHAT-DEBUG] updates data: {data}")
                     for source, update in data.items():
-                        logger.info(f"[CHAT-DEBUG] source={source}, update keys={update.keys() if isinstance(update, dict) else type(update)}")
+                        logger.debug(f"[CHAT-DEBUG] source={source}, update keys={update.keys() if isinstance(update, dict) else type(update)}")
                         if source in ("model", "tools"):
                             formatted_list = ChatService._format_update({source: update}, enable_thinking)
-                            logger.info(f"[CHAT-DEBUG] formatted_list={formatted_list}")
+                            logger.debug(f"[CHAT-DEBUG] formatted_list={formatted_list}")
                             for formatted in formatted_list:
                                 if formatted.get("type") == "tool_call":
                                     tool_call_count += 1
@@ -462,7 +458,7 @@ class ChatService:
             enable_thinking: 是否启用深度思考模式，启用时会流式输出思考内容
         """
         try:
-            logger.info(f"[CHAT] 开始生成流式响应: conversation_id={conversation_id}, enable_thinking={enable_thinking}")
+            logger.debug(f"[CHAT] 开始生成流式响应: conversation_id={conversation_id}, enable_thinking={enable_thinking}")
             has_token_output = False
             in_thinking_mode = False
             async for event in ChatService.process_message(
@@ -543,9 +539,7 @@ class ChatService:
         
         if all_keys:
             await redis_client.client.delete(*all_keys)
-            logger.info(f"[CACHE DELETE] 已删除消息缓存: conversation_id={conversation_id}, user_id={user_id}, keys={len(all_keys)}")
-        else:
-            logger.info(f"[CACHE DELETE] 未找到消息缓存: conversation_id={conversation_id}, user_id={user_id}")
+            logger.debug(f"[CACHE DELETE] 已删除消息缓存: conversation_id={conversation_id}, keys={len(all_keys)}")
 
 
 chat_service = ChatService()

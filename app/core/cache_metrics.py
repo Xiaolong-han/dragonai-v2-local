@@ -72,7 +72,7 @@ async def get_cache_stats() -> Dict[str, Any]:
         dbsize = await redis_client.client.dbsize()
         stats["redis_key_count"] = dbsize
     except Exception as e:
-        logger.warning(f"[CACHE METRICS] 无法获取 Redis 信息: {e}")
+        logger.debug(f"[CACHE METRICS] Cannot get Redis info: {e}")
         stats["redis_error"] = str(e)
     
     return stats

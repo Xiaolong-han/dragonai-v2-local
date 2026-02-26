@@ -233,25 +233,25 @@ class QwenImageModel:
         }
         
         image_content = await self._prepare_image_content(image_url)
-        logger.info(f"[IMAGE_EDIT] 准备图片内容完成, model={self.model_name}")
+        logger.debug(f"[IMAGE_EDIT] Prepared image content, model={self.model_name}")
         
         data = self._build_edit_data(image_content, prompt, size, n, negative_prompt, prompt_extend, watermark)
         
         async with httpx.AsyncClient(timeout=240.0) as client:
-            logger.info(f"[IMAGE_EDIT] 发送请求, model={self.model_name}, prompt={prompt}")
+            logger.debug(f"[IMAGE_EDIT] Sending request, model={self.model_name}")
 
             response = await client.post(self.base_url, headers=headers, json=data)
             
             if response.status_code != 200:
                 try:
                     error_detail = response.json()
-                    logger.error(f"[IMAGE_EDIT] API错误详情: {error_detail}")
-                    raise ValueError(f"API错误 [{response.status_code}]: {error_detail}")
+                    logger.error(f"[IMAGE_EDIT] API error: {error_detail}")
+                    raise ValueError(f"API error [{response.status_code}]: {error_detail}")
                 except Exception:
                     response.raise_for_status()
             
             result = response.json()
-            logger.info(f"[IMAGE_EDIT] API响应: {result}")
+            logger.debug(f"[IMAGE_EDIT] API response received")
             
             urls = self._parse_image_urls(result)
             if urls:
@@ -259,6 +259,6 @@ class QwenImageModel:
                     local_path = await self._download_and_save_image(urls[0], prefix="edited")
                     return local_path
                 except Exception as e:
-                    logger.warning(f"保存编辑图片失败: {e}, 使用远程URL")
+                    logger.warning(f"Failed to save edited image: {e}, using remote URL")
                     return urls[0]
             return ""

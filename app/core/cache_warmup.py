@@ -23,12 +23,13 @@ class CacheWarmup:
         1. 预热置顶会话
         2. 预热最近更新的会话
         """
-        logger.info(f"[CACHE WARMUP] 开始预热会话列表缓存，限制 {limit} 条")
+        logger.debug(f"[CACHE WARMUP] 开始预热会话列表缓存，限制 {limit} 条")
         
         async with get_db_session() as db:
             result = await db.execute(select(User).limit(50))
             active_users = result.scalars().all()
             
+            warmed_count = 0
             for user in active_users:
                 user_id = user.id
                 
@@ -53,16 +54,16 @@ class CacheWarmup:
                         enable_lock=True,
                         enable_random_ttl=True
                     )
-                    logger.info(f"[CACHE WARMUP] 用户 {user_id} 的会话列表已预热")
+                    warmed_count += 1
                 except Exception as e:
-                    logger.error(f"[CACHE WARMUP] 预热用户 {user_id} 会话列表失败: {e}")
+                    logger.warning(f"[CACHE WARMUP] 预热用户 {user_id} 会话列表失败: {e}")
             
-            logger.info(f"[CACHE WARMUP] 会话列表缓存预热完成，预热了 {len(active_users)} 个用户")
+            logger.info(f"[CACHE WARMUP] 会话列表缓存预热完成，预热了 {warmed_count}/{len(active_users)} 个用户")
     
     @staticmethod
     async def warmup_pinned_conversations():
         """预热置顶会话详情缓存"""
-        logger.info("[CACHE WARMUP] 开始预热置顶会话详情缓存")
+        logger.debug("[CACHE WARMUP] 开始预热置顶会话详情缓存")
         
         async with get_db_session() as db:
             result = await db.execute(
@@ -70,6 +71,7 @@ class CacheWarmup:
             )
             pinned_conversations = result.scalars().all()
             
+            warmed_count = 0
             for conv in pinned_conversations:
                 user_id = conv.user_id
                 conversation_id = conv.id
@@ -95,11 +97,11 @@ class CacheWarmup:
                         enable_lock=True,
                         enable_random_ttl=True
                     )
-                    logger.info(f"[CACHE WARMUP] 置顶会话 {conversation_id} 已预热")
+                    warmed_count += 1
                 except Exception as e:
-                    logger.error(f"[CACHE WARMUP] 预热置顶会话 {conversation_id} 失败: {e}")
+                    logger.warning(f"[CACHE WARMUP] 预热置顶会话 {conversation_id} 失败: {e}")
             
-            logger.info(f"[CACHE WARMUP] 置顶会话详情缓存预热完成，预热了 {len(pinned_conversations)} 个会话")
+            logger.info(f"[CACHE WARMUP] 置顶会话详情缓存预热完成，预热了 {warmed_count}/{len(pinned_conversations)} 个会话")
     
     @staticmethod
     async def warmup_recent_conversations(hours: int = 24):
@@ -111,7 +113,7 @@ class CacheWarmup:
         """
         from datetime import datetime, timedelta
         
-        logger.info(f"[CACHE WARMUP] 开始预热最近 {hours} 小时活跃的会话")
+        logger.debug(f"[CACHE WARMUP] 开始预热最近 {hours} 小时活跃的会话")
         
         async with get_db_session() as db:
             cutoff_time = datetime.utcnow() - timedelta(hours=hours)
@@ -123,6 +125,7 @@ class CacheWarmup:
             )
             recent_conversations = result.scalars().all()
             
+            warmed_count = 0
             for conv in recent_conversations:
                 user_id = conv.user_id
                 conversation_id = conv.id
@@ -148,21 +151,22 @@ class CacheWarmup:
                         enable_lock=True,
                         enable_random_ttl=True
                     )
+                    warmed_count += 1
                 except Exception as e:
-                    logger.error(f"[CACHE WARMUP] 预热会话 {conversation_id} 失败: {e}")
+                    logger.warning(f"[CACHE WARMUP] 预热会话 {conversation_id} 失败: {e}")
             
-            logger.info(f"[CACHE WARMUP] 最近活跃会话缓存预热完成，预热了 {len(recent_conversations)} 个会话")
+            logger.info(f"[CACHE WARMUP] 最近活跃会话缓存预热完成，预热了 {warmed_count}/{len(recent_conversations)} 个会话")
     
     @staticmethod
     async def warmup_all():
         """执行所有缓存预热"""
-        logger.info("[CACHE WARMUP] ========== 开始缓存预热 ==========")
+        logger.info("[CACHE WARMUP] 开始缓存预热")
         
         await CacheWarmup.warmup_conversations(limit=100)
         await CacheWarmup.warmup_pinned_conversations()
         await CacheWarmup.warmup_recent_conversations(hours=24)
         
-        logger.info("[CACHE WARMUP] ========== 缓存预热完成 ==========")
+        logger.info("[CACHE WARMUP] 缓存预热完成")
 
 
 cache_warmup = CacheWarmup()

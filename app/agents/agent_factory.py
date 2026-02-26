@@ -15,7 +15,6 @@ from deepagents.backends.filesystem import FilesystemBackend
 from app.config import settings
 from app.tools import ALL_TOOLS
 from app.llm.model_factory import ModelFactory
-from app.agents.debug_middleware import DebugMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -69,10 +68,10 @@ class AgentFactory:
                 if not cls._initialized:
                     await cls._checkpointer.setup()
                     cls._initialized = True
-                logger.info("[AGENT] AsyncPostgresSaver 初始化成功")
+                logger.info("[AGENT] AsyncPostgresSaver initialized")
                 return True
         except Exception as e:
-            logger.warning(f"[AGENT] AsyncPostgresSaver 初始化失败，降级使用 InMemorySaver: {e}")
+            logger.warning(f"[AGENT] AsyncPostgresSaver init failed, fallback to InMemorySaver: {e}")
         
         cls._checkpointer = InMemorySaver()
         cls._context_manager = None
@@ -87,9 +86,9 @@ class AgentFactory:
         if cls._context_manager and hasattr(cls._context_manager, '__aexit__'):
             try:
                 await cls._context_manager.__aexit__(None, None, None)
-                logger.info("[AGENT] AsyncPostgresSaver 连接已关闭")
+                logger.info("[AGENT] AsyncPostgresSaver connection closed")
             except Exception as e:
-                logger.error(f"[AGENT] 关闭 AsyncPostgresSaver 连接失败: {e}")
+                logger.error(f"[AGENT] Failed to close AsyncPostgresSaver connection: {e}")
         cls._checkpointer = None
         cls._context_manager = None
 
@@ -117,13 +116,13 @@ class AgentFactory:
             skills_dir = Path(settings.skills_dir).resolve()
             if not skills_dir.exists():
                 skills_dir.mkdir(parents=True, exist_ok=True)
-                logger.info(f"[AGENT] 创建技能目录: {skills_dir}")
+                logger.debug(f"[AGENT] Created skills directory: {skills_dir}")
             
             cls._skills_backend = FilesystemBackend(
                 root_dir=skills_dir,
                 virtual_mode=True,
             )
-            logger.info(f"[AGENT] 初始化技能后端: {skills_dir}")
+            logger.debug(f"[AGENT] Initialized skills backend: {skills_dir}")
         return cls._skills_backend
 
     @classmethod
@@ -153,7 +152,7 @@ class AgentFactory:
         cache_key = f"expert_{is_expert}_thinking_{enable_thinking}"
         
         if cache_key in cls._agent_cache:
-            logger.debug(f"[AGENT] 使用缓存的Agent: {cache_key}")
+            logger.debug(f"[AGENT] Using cached agent: {cache_key}")
             return cls._agent_cache[cache_key]
         
         model = ModelFactory.get_general_model(
@@ -168,7 +167,6 @@ class AgentFactory:
         middleware = [
             FilesystemMiddleware(backend=skills_backend),
             SkillsMiddleware(backend=skills_backend, sources=["/"]),
-            DebugMiddleware(log_full_prompt=False, max_length=3000),
         ]
 
         agent = create_agent(
@@ -180,7 +178,7 @@ class AgentFactory:
         )
         
         cls._agent_cache[cache_key] = agent
-        logger.info(f"[AGENT] 创建并缓存Agent (with Skills): {cache_key}")
+        logger.debug(f"[AGENT] Created and cached agent: {cache_key}")
 
         return agent
 

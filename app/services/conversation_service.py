@@ -141,9 +141,7 @@ class ConversationService:
         
         if all_keys:
             await redis_client.client.delete(*all_keys)
-            logger.info(f"[CACHE DELETE] 已删除用户会话列表缓存: user_id={user_id}, keys={len(all_keys)}")
-        else:
-            logger.info(f"[CACHE DELETE] 未找到用户会话列表缓存: user_id={user_id}")
+            logger.debug(f"[CACHE DELETE] 已删除用户会话列表缓存: user_id={user_id}, keys={len(all_keys)}")
 
     @staticmethod
     async def _invalidate_conversation_cache(conversation_id: int, user_id: int):
@@ -151,7 +149,7 @@ class ConversationService:
         exists = await redis_client.exists(cache_key)
         if exists:
             await redis_client.delete(cache_key)
-            logger.info(f"[CACHE DELETE] 已删除会话缓存: conversation_id={conversation_id}")
+            logger.debug(f"[CACHE DELETE] 已删除会话缓存: conversation_id={conversation_id}")
 
 
 conversation_service = ConversationService()

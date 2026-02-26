@@ -104,14 +104,14 @@ async def send_chat_message(
                 messages_history=history[:-1]
             ):
                 if isinstance(event, dict):
-                    logger.info(f"[SSE] Processing event: type={event.get('type')}")
+                    logger.debug(f"[SSE] Processing event: type={event.get('type')}")
                     if event.get("type") == "thinking":
                         thinking_chunk = event.get("data", {}).get("content", "")
                         thinking_content += thinking_chunk
-                        logger.info(f"[SSE] Sending thinking chunk: {len(thinking_chunk)} chars")
+                        logger.debug(f"[SSE] Sending thinking chunk: {len(thinking_chunk)} chars")
                         yield f"data: {json.dumps({'type': 'thinking', 'data': {'content': thinking_chunk}}, ensure_ascii=False)}\n\n"
                     elif event.get("type") == "thinking_end":
-                        logger.info(f"[SSE] Sending thinking_end")
+                        logger.debug(f"[SSE] Sending thinking_end")
                         yield f"data: {json.dumps({'type': 'thinking_end', 'data': {'content': ''}}, ensure_ascii=False)}\n\n"
                     else:
                         content = event.get("data", {}).get("content", "") or event.get("content", "")
@@ -120,16 +120,14 @@ async def send_chat_message(
                 else:
                     full_response += event
                     chunk_count += 1
-                    logger.info(f"[SSE] Sending chunk {chunk_count}: {len(event)} chars")
+                    logger.debug(f"[SSE] Sending chunk {chunk_count}: {len(event)} chars")
                     yield f"data: {json.dumps({'type': 'content', 'data': {'content': event}}, ensure_ascii=False)}\n\n"
                 await asyncio.sleep(0.01)
             
-            logger.info(f"[SSE] Stream complete, total chunks: {chunk_count}, total chars: {len(full_response)}")
-            logger.info(f"[SSE] Full response content:\n{full_response}")
-            logger.info(f"[SSE] Thinking content length: {len(thinking_content)}")
+            logger.info(f"[SSE] Stream complete, total chunks: {chunk_count}, response length: {len(full_response)}")
             
             if thinking_content:
-                logger.info(f"[SSE] Sending thinking_end, total thinking: {len(thinking_content)} chars")
+                logger.debug(f"[SSE] Sending thinking_end, total thinking: {len(thinking_content)} chars")
                 yield f"data: {json.dumps({'type': 'thinking_end', 'data': {'content': ''}}, ensure_ascii=False)}\n\n"
             
             metadata = {"model": "expert" if chat_request.is_expert else "fast"}

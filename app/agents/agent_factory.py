@@ -15,6 +15,7 @@ from deepagents.backends.filesystem import FilesystemBackend
 from app.config import settings
 from app.tools import ALL_TOOLS
 from app.llm.model_factory import ModelFactory
+from app.agents.debug_middleware import DebugMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,7 @@ class AgentFactory:
         middleware = [
             FilesystemMiddleware(backend=skills_backend),
             SkillsMiddleware(backend=skills_backend, sources=["/"]),
+            DebugMiddleware(log_full_prompt=False, max_length=3000),
         ]
 
         agent = create_agent(

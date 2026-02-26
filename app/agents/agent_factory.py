@@ -1,12 +1,16 @@
 """Agent工厂 - 使用LangChain Deep Agent with Skills"""
 
 import logging
-import os
+from pathlib import Path
 from typing import Optional, Union
 
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+from deepagents.middleware.skills import SkillsMiddleware
+from deepagents.middleware.filesystem import FilesystemMiddleware
+from deepagents.backends.filesystem import FilesystemBackend
 
 from app.config import settings
 from app.tools import ALL_TOOLS
@@ -30,6 +34,11 @@ SYSTEM_PROMPT = """你是一个强大的AI助手，能够帮助用户处理各�
 - 如果工具结果包含<INSTRUCTION>标签，必须严格遵循标签内的指令
 - 当看到<INSTRUCTION>标签时，只输出标签后的内容，不要输出标签本身，不要做任何修改
 
+**技能使用规则（非常重要）**：
+- 当用户请求匹配某个技能的描述时，你必须先调用 read_file 读取该技能的完整指令
+- 禁止在没有读取技能文件的情况下直接回答相关任务
+- 读取技能文件后，必须严格按照技能中的流程和模板执行任务
+
 请根据用户的需求，合理选择和使用工具。如果用户请求不明确，请主动询问以澄清需求。
 """
 
@@ -41,6 +50,7 @@ class AgentFactory:
     _context_manager: Optional[object] = None
     _initialized: bool = False
     _agent_cache: dict = {}
+    _skills_backend: Optional[FilesystemBackend] = None
 
     @classmethod
     async def init_checkpointer(cls) -> bool:
@@ -96,6 +106,26 @@ class AgentFactory:
         return cls._checkpointer
 
     @classmethod
+    def _get_skills_backend(cls) -> FilesystemBackend:
+        """获取技能文件系统后端
+        
+        Returns:
+            FilesystemBackend 实例
+        """
+        if cls._skills_backend is None:
+            skills_dir = Path(settings.skills_dir).resolve()
+            if not skills_dir.exists():
+                skills_dir.mkdir(parents=True, exist_ok=True)
+                logger.info(f"[AGENT] 创建技能目录: {skills_dir}")
+            
+            cls._skills_backend = FilesystemBackend(
+                root_dir=skills_dir,
+                virtual_mode=True,
+            )
+            logger.info(f"[AGENT] 初始化技能后端: {skills_dir}")
+        return cls._skills_backend
+
+    @classmethod
     def create_chat_agent(
         cls,
         is_expert: bool = False,
@@ -107,6 +137,10 @@ class AgentFactory:
         内部基于LangGraph构建，支持持久化、流式输出等特性。
         
         使用缓存机制，相同配置的agent只创建一次，通过thread_id区分不同对话。
+        
+        集成 Skills:
+        - FilesystemMiddleware: 提供 ls, read_file, write_file, edit_file, glob, grep 工具
+        - SkillsMiddleware: 扫描技能目录，注入技能列表到系统提示
 
         Args:
             is_expert: 是否使用专家模型
@@ -127,16 +161,24 @@ class AgentFactory:
         )
 
         checkpointer = cls.get_checkpointer()
+        
+        skills_backend = cls._get_skills_backend()
+        
+        middleware = [
+            FilesystemMiddleware(backend=skills_backend),
+            SkillsMiddleware(backend=skills_backend, sources=["/"]),
+        ]
 
         agent = create_agent(
             model=model,
             tools=ALL_TOOLS,
             system_prompt=SYSTEM_PROMPT,
             checkpointer=checkpointer,
+            middleware=middleware,
         )
         
         cls._agent_cache[cache_key] = agent
-        logger.info(f"[AGENT] 创建并缓存Agent: {cache_key}")
+        logger.info(f"[AGENT] 创建并缓存Agent (with Skills): {cache_key}")
 
         return agent
 

@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     model_embedding: str = "text-embedding-v4"
     
     # Agent配置
-    agent_recursion_limit: int = 10  # Agent递归深度限制（工具调用最大轮次）
+    agent_recursion_limit: int = 25  # Agent递归深度限制（工具调用最大轮次）
 
     class Config:
         env_file = ".env"

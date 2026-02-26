@@ -11,6 +11,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from deepagents.middleware.skills import SkillsMiddleware
 from deepagents.middleware.filesystem import FilesystemMiddleware
 from deepagents.backends.filesystem import FilesystemBackend
+from deepagents.backends.composite import CompositeBackend
 
 from app.config import settings
 from app.tools import ALL_TOOLS
@@ -50,7 +51,7 @@ class AgentFactory:
     _context_manager: Optional[object] = None
     _initialized: bool = False
     _agent_cache: dict = {}
-    _skills_backend: Optional[FilesystemBackend] = None
+    _skills_backend: Optional[CompositeBackend] = None
 
     @classmethod
     async def init_checkpointer(cls) -> bool:
@@ -106,23 +107,35 @@ class AgentFactory:
         return cls._checkpointer
 
     @classmethod
-    def _get_skills_backend(cls) -> FilesystemBackend:
+    def _get_skills_backend(cls) -> CompositeBackend:
         """获取技能文件系统后端
         
+        使用 CompositeBackend 组合多个目录：
+        - 默认目录：./app/skills (技能文件)
+        - /storage/ 路由：./storage (上传的文件)
+        
         Returns:
-            FilesystemBackend 实例
+            CompositeBackend 实例
         """
         if cls._skills_backend is None:
             skills_dir = Path(settings.skills_dir).resolve()
+            storage_dir = Path(settings.storage_dir).resolve()
+            
             if not skills_dir.exists():
                 skills_dir.mkdir(parents=True, exist_ok=True)
                 logger.debug(f"[AGENT] Created skills directory: {skills_dir}")
             
-            cls._skills_backend = FilesystemBackend(
-                root_dir=skills_dir,
-                virtual_mode=True,
+            if not storage_dir.exists():
+                storage_dir.mkdir(parents=True, exist_ok=True)
+                logger.debug(f"[AGENT] Created storage directory: {storage_dir}")
+            
+            cls._skills_backend = CompositeBackend(
+                default=FilesystemBackend(root_dir=skills_dir, virtual_mode=True),
+                routes={
+                    "/storage/": FilesystemBackend(root_dir=storage_dir, virtual_mode=True),
+                }
             )
-            logger.debug(f"[AGENT] Initialized skills backend: {skills_dir}")
+            logger.debug(f"[AGENT] Initialized composite backend: skills={skills_dir}, storage={storage_dir}")
         return cls._skills_backend
 
     @classmethod

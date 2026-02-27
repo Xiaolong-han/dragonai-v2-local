@@ -209,3 +209,4 @@ __marimo__/
 storage/
 .env.env
 .coverage
+prompt_add_for_skill.md

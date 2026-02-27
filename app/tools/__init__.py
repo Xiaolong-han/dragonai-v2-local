@@ -6,6 +6,16 @@ from .multimodal_tool import ocr_document, understand_image
 from .image_tools import generate_image, edit_image
 from .code_tools import code_assist
 from .translation_tools import translate_text
+from .filesystem_tools import (
+    ls,
+    read_file,
+    write_file,
+    edit_file,
+    glob,
+    grep,
+    read_pdf,
+    read_word,
+)
 
 # 所有工具列表 - 直接传递给create_agent
 ALL_TOOLS = [
@@ -17,6 +27,14 @@ ALL_TOOLS = [
     edit_image,
     code_assist,
     translate_text,
+    ls,
+    read_file,
+    write_file,
+    edit_file,
+    glob,
+    grep,
+    read_pdf,
+    read_word,
 ]
 
 __all__ = [
@@ -29,4 +47,12 @@ __all__ = [
     "edit_image",
     "code_assist",
     "translate_text",
+    "ls",
+    "read_file",
+    "write_file",
+    "edit_file",
+    "glob",
+    "grep",
+    "read_pdf",
+    "read_word",
 ]

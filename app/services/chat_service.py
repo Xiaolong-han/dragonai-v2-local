@@ -142,7 +142,6 @@ class ChatService:
                         logger.debug(f"[CHAT-DEBUG] source={source}, update keys={update.keys() if isinstance(update, dict) else type(update)}")
                         if source in ("model", "tools"):
                             formatted_list = ChatService._format_update({source: update}, enable_thinking)
-                            logger.debug(f"[CHAT-DEBUG] formatted_list={formatted_list}")
                             for formatted in formatted_list:
                                 if formatted.get("type") == "tool_call":
                                     tool_call_count += 1

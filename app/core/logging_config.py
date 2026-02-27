@@ -41,6 +41,7 @@ THIRD_PARTY_LOG_LEVELS: Dict[str, str] = {
     "openai": "WARNING",
     "anthropic": "WARNING",
     "http": "WARNING",
+    "dashscope": "WARNING",
 }
 
 

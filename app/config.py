@@ -31,15 +31,15 @@ class Settings(BaseSettings):
 
     storage_dir: str = "./storage"
 
-    skills_dir: str = "./app/skills"
+    skills_dir: str = "./storage/skills"
 
     log_level: str = "INFO"
     log_dir: str = "./logs"
 
     # 模型配置 - 开发者可自定义模型映射
-    # 通用模型配置"qwen-flash-2025-07-28" 
-    model_general_fast: str = "qwen-plus" 
-    model_general_expert: str = "qwen3-max"
+    # 通用模型配置"qwen-flash-2025-07-28" deepseek-v3.2
+    model_general_fast: str = "glm-4.5-air" 
+    model_general_expert: str = "glm-4.5"
     
     # 视觉模型配置
     model_vision_ocr: str = "qwen-vl-ocr"

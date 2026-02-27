@@ -77,6 +77,31 @@ marked.setOptions({
   async: false
 })
 
+const imageExtensions = /\.(png|jpe?g|gif|webp|bmp|svg|ico)(\?.*)?$/i
+
+function processImageUrls(html: string): string {
+  const imageUrlPattern = /(?<!["'=])(\/api\/v1\/files\/serve\/[^\s<>"']+)/g
+  const fullUrlPattern = new RegExp(
+    `(?<!["'=])(https?:\\/\\/[^\\s<>"']+${imageExtensions.source.slice(1)})`,
+    'gi'
+  )
+  
+  html = html.replace(imageUrlPattern, (match) => {
+    if (imageExtensions.test(match)) {
+      const fullUrl = `${baseUrl}${match}`
+      return `<div class="image-container"><img src="${fullUrl}" alt="生成的图片" /><div class="image-overlay"><button class="download-btn" onclick="downloadImage('${fullUrl}', 'image.png')" title="下载图片"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button></div></div>`
+    }
+    return match
+  })
+  
+  html = html.replace(fullUrlPattern, (match) => {
+    return `<div class="image-container"><img src="${match}" alt="生成的图片" /><div class="image-overlay"><button class="download-btn" onclick="downloadImage('${match}', 'image.png')" title="下载图片"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button></div></div>`
+  })
+  
+  return html
+}
+
 export const renderMarkdown = (content: string): string => {
-  return marked.parse(content) as string
+  const html = marked.parse(content) as string
+  return processImageUrls(html)
 }

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
 
     # 模型配置 - 开发者可自定义模型映射
     # 通用模型配置"qwen-flash-2025-07-28" deepseek-v3.2
+    # glm支持4.5 4.6 4.7 5
     model_general_fast: str = "glm-4.5-air" 
     model_general_expert: str = "glm-4.5"
     

@@ -132,7 +132,7 @@ export const useChatStore = defineStore('chat', () => {
     }
     messages.value.push(assistantMessage)
 
-    const url = 'http://localhost:8000/api/v1/chat/send'
+    const url = '/api/v1/chat/send'
     
     const body: any = {
       conversation_id: conversationId,

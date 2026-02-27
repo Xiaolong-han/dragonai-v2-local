@@ -2,7 +2,7 @@ import { marked, type Tokens } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
 ;(window as any).downloadImage = async (imageUrl: string, filename: string) => {
   try {

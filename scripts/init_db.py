@@ -1,18 +1,16 @@
 
+import asyncio
 import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.database import engine, Base
-from app.models import user, conversation, message
+from app.core.database import init_db
 
 
-def init_database():
+async def main():
     print("Creating database tables...")
-    
-    Base.metadata.create_all(bind=engine)
-    
+    await init_db()
     print("Database tables created successfully!")
     print("- users")
     print("- conversations")
@@ -21,7 +19,7 @@ def init_database():
 
 if __name__ == "__main__":
     try:
-        init_database()
+        asyncio.run(main())
         print("\nDatabase initialization complete!")
     except Exception as e:
         print(f"Error initializing database: {e}")

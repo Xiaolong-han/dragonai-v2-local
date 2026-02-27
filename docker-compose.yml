@@ -66,7 +66,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - backend_storage:/app/storage
+      - ./storage:/app/storage
       - backend_chroma:/app/chroma_db
       - backend_logs:/app/logs
     healthcheck:
@@ -109,7 +109,6 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  backend_storage:
   backend_chroma:
   backend_logs:
   nginx_logs:

@@ -10,7 +10,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# 核心优化：替换为阿里云 Debian 源，大幅提升 apt 下载速度
+# 适配 Debian 12 (Bookworm) 的 sources.list.d 格式
+RUN sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libpq-dev \
@@ -18,6 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+# 可选优化：替换 pip 源为阿里云，加速 Python 包安装
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 
 COPY requirements.txt .
 

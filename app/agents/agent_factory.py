@@ -107,16 +107,21 @@ class AgentFactory:
             FilesystemBackend 实例
         """
         if cls._skills_backend is None:
-            skills_dir = Path(settings.skills_dir).resolve()
+            storage_dir = Path(settings.storage_dir).resolve()
+            if not storage_dir.exists():
+                storage_dir.mkdir(parents=True, exist_ok=True)
+                logger.debug(f"[AGENT] Created storage directory: {storage_dir}")
+            
+            skills_dir = storage_dir / "skills"
             if not skills_dir.exists():
                 skills_dir.mkdir(parents=True, exist_ok=True)
                 logger.debug(f"[AGENT] Created skills directory: {skills_dir}")
             
             cls._skills_backend = FilesystemBackend(
-                root_dir=skills_dir,
+                root_dir=storage_dir,
                 virtual_mode=True,
             )
-            logger.debug(f"[AGENT] Initialized skills backend: {skills_dir}")
+            logger.debug(f"[AGENT] Initialized skills backend: {storage_dir}")
         return cls._skills_backend
 
     @classmethod
@@ -158,7 +163,7 @@ class AgentFactory:
         skills_backend = cls._get_skills_backend()
         
         middleware = [
-            SkillsMiddleware(backend=skills_backend, sources=["/"]),
+            SkillsMiddleware(backend=skills_backend, sources=["/skills/"]),
         ]
 
         agent = create_agent(

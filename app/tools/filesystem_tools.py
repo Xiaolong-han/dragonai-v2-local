@@ -19,17 +19,15 @@ IMAGE_MEDIA_TYPES = {
 }
 
 STORAGE_DIR = Path(settings.storage_dir).resolve()
-SKILLS_DIR = Path(settings.skills_dir).resolve()
 
 
 def _resolve_path(file_path: str) -> Path:
-    """解析文件路径，支持多种格式
+    """解析文件路径
     
-    统一使用 storage 目录作为根目录：
-    - /storage/documents/xxx.txt → ./storage/documents/xxx.txt
-    - /storage/skills/xxx.md → ./storage/skills/xxx.md
-    - /skills/xxx.md → ./storage/skills/xxx.md (技能路径快捷方式)
-    - documents/xxx.txt → ./storage/documents/xxx.txt
+    输入格式：
+    - documents/xxx.txt (相对路径)
+    - /documents/xxx.txt (虚拟路径)
+    - C:\\xxx (系统绝对路径，需验证权限)
     
     Args:
         file_path: 文件路径
@@ -42,29 +40,14 @@ def _resolve_path(file_path: str) -> Path:
     """
     path = Path(file_path)
     
-    if file_path.startswith("/storage/"):
-        relative = file_path[9:]
-        resolved = STORAGE_DIR / relative
-    elif file_path.startswith("/skills/"):
-        relative = file_path[8:]
-        resolved = SKILLS_DIR / relative
-    elif file_path.startswith("/") and not file_path.startswith("/storage"):
-        relative = file_path[1:]
-        if (SKILLS_DIR / relative).exists():
-            resolved = SKILLS_DIR / relative
-        else:
-            resolved = STORAGE_DIR / relative
-    elif path.is_absolute():
-        resolved = path
-    else:
-        resolved = STORAGE_DIR / file_path
+    if path.is_absolute():
+        resolved = path.resolve()
+        if not _is_subpath(resolved, STORAGE_DIR):
+            raise ValueError(f"路径 '{file_path}' 不在允许的目录内")
+        return resolved
     
-    resolved = resolved.resolve()
-    
-    if not _is_subpath(resolved, STORAGE_DIR) and not _is_subpath(resolved, SKILLS_DIR):
-        raise ValueError(f"路径 '{file_path}' 不在允许的目录内")
-    
-    return resolved
+    relative = file_path.lstrip("/")
+    return (STORAGE_DIR / relative).resolve()
 
 
 def _is_subpath(path: Path, parent: Path) -> bool:
@@ -119,8 +102,8 @@ def ls(path: str = "/") -> str:
     在使用 read_file 或 edit_file 之前，通常应先使用此工具。
 
     Args:
-        path: 要列出的目录路径。如 /storage/documents 或 /storage/skills。
-              默认为根目录 "/"，显示 storage 目录下的所有内容。
+        path: 目录路径，如 /documents 或 /skills。
+              默认为 "/"，显示 storage 目录下的所有内容。
 
     Returns:
         目录内容列表，包含文件名、类型和大小信息。
@@ -183,8 +166,7 @@ def read_file(
     - Agent 可以直接"看到"图片内容
 
     Args:
-        file_path: 文件路径。可以是相对路径(如 documents/xxx.txt)、
-                   Agent 路径(如 /storage/documents/xxx.txt)或绝对路径。
+        file_path: 文件路径，如 documents/xxx.txt 或 /documents/xxx.txt。
         offset: 开始读取的行号（0 索引），默认 0。
         limit: 最多读取的行数，默认 100。
 
@@ -264,7 +246,7 @@ def write_file(file_path: str, content: str) -> str:
     如需修改现有文件，请使用 edit_file 工具。
 
     Args:
-        file_path: 文件路径。可以是相对路径或 Agent 路径。
+        file_path: 文件路径，如 documents/xxx.txt 或 /documents/xxx.txt。
         content: 要写入的文本内容。
 
     Returns:
@@ -303,7 +285,7 @@ def edit_file(
     old_string 必须与文件中的内容完全匹配（包括空格和缩进）。
 
     Args:
-        file_path: 文件路径。
+        file_path: 文件路径，如 documents/xxx.txt 或 /documents/xxx.txt。
         old_string: 要查找和替换的文本。必须完全匹配。
         new_string: 替换后的新文本。
         replace_all: 是否替换所有匹配项。默认 False，此时 old_string 必须唯一。
@@ -468,8 +450,7 @@ async def read_pdf(file_path: str, start_page: int = 1, end_page: Optional[int] 
     对于扫描版 PDF（图片型 PDF），会自动检测并提示使用 OCR 模式。
 
     Args:
-        file_path: PDF 文件路径。可以是相对路径(如 documents/xxx.pdf)或
-                   Agent 路径(如 /storage/documents/xxx.pdf)。
+        file_path: PDF 文件路径，如 documents/xxx.pdf 或 /documents/xxx.pdf。
         start_page: 开始页码，从 1 开始，默认为 1。
         end_page: 结束页码，不指定则读取到最后一页。
         use_ocr: 是否使用 OCR 模式处理扫描版 PDF。默认 False。
@@ -590,8 +571,7 @@ async def read_word(file_path: str) -> str:
     支持读取文档标题、段落、表格等内容。
 
     Args:
-        file_path: Word 文件路径。可以是相对路径(如 documents/xxx.docx)或
-                   Agent 路径(如 /storage/documents/xxx.docx)。
+        file_path: Word 文件路径，如 documents/xxx.docx 或 /documents/xxx.docx。
 
     Returns:
         Word 文档的文本内容，包含结构标记。

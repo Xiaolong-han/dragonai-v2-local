@@ -29,6 +29,7 @@ class FileUploadResponse(BaseModel):
     original_filename: Optional[str]
     content_type: str
     relative_path: str
+    virtual_path: str
     file_size: int
     upload_time: str
 

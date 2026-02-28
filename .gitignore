@@ -210,3 +210,4 @@ storage/
 .env.env
 .coverage
 prompt_add_for_skill.md
+.trae

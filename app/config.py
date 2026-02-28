@@ -1,6 +1,6 @@
 
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -67,9 +67,11 @@ class Settings(BaseSettings):
     # Agent配置
     agent_recursion_limit: int = 25  # Agent递归深度限制（工具调用最大轮次）
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 

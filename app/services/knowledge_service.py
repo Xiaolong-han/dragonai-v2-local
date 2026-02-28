@@ -135,7 +135,7 @@ class KnowledgeService:
         with open(file_path, "wb") as f:
             f.write(content)
         
-        return str(file_path)
+        return f"/storage/knowledge_base/{filename}"
 
 
 def get_knowledge_service() -> KnowledgeService:

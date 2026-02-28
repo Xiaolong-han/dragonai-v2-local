@@ -3,6 +3,9 @@
 import asyncio
 import os
 import sys
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Windows 上使用 SelectorEventLoop 以兼容 psycopg
 # 必须在任何其他导入之前设置

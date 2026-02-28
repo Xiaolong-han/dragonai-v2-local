@@ -460,9 +460,9 @@ dragonai-nginx        running   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
 
 ### 5.5 访问应用
 
-- **前端页面**: http://your-server-ip
-- **API 文档**: http://your-server-ip/docs
-- **健康检查**: http://your-server-ip/health
+- **前端页面**: http://ip
+- **API 文档**: http://ip/docs
+- **健康检查**: http://ip/health
 
 ---
 
@@ -830,12 +830,12 @@ docker compose build 2>&1 | tee build.log
 ssh root@your-server-ip
 
 # ========== Docker 命令 ==========
-docker compose ps          # 查看状态
-docker compose logs -f     # 查看日志
-docker compose restart     # 重启服务
-docker compose down        # 停止服务
-docker compose up -d       # 启动服务
-docker compose build       # 构建镜像
+docker-compose ps          # 查看状态
+docker-compose logs -f     # 查看日志
+docker-compose restart     # 重启服务
+docker-compose down        # 停止服务
+docker-compose up -d       # 启动服务
+docker-compose build       # 构建镜像
 
 # ========== 系统命令 ==========
 htop                       # 系统监控

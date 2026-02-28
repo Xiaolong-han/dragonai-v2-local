@@ -66,6 +66,7 @@ class FileStorage:
 
         file_size = len(content)
         relative_path = f"{subdir}/{filename}"
+        virtual_path = f"/storage/{subdir}/{filename}"
 
         return {
             "filename": filename,
@@ -73,6 +74,7 @@ class FileStorage:
             "content_type": content_type,
             "file_path": str(file_path),
             "relative_path": relative_path,
+            "virtual_path": virtual_path,
             "file_size": file_size,
             "upload_time": datetime.now().isoformat(),
         }

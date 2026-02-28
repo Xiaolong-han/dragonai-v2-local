@@ -7,6 +7,8 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,14 +21,26 @@ def get_client_identifier(request: Request) -> str:
         return f"user:{request.state.user.id}"
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        return forwarded.split(",")[0].strip()
-    return get_remote_address(request)
+        return f"ip:{forwarded.split(',')[0].strip()}"
+    return f"ip:{get_remote_address(request)}"
+
+
+def get_storage_uri() -> str:
+    """获取限流存储URI
+    
+    生产环境使用 Redis 存储，支持多实例部署
+    开发环境可使用内存存储
+    """
+    if settings.rate_limit_storage == "redis":
+        return settings.redis_url
+    return "memory://"
 
 
 limiter = Limiter(
     key_func=get_client_identifier,
-    default_limits=["200/minute"],
-    storage_uri="memory://",
+    default_limits=[settings.rate_limit_default],
+    storage_uri=get_storage_uri(),
+    storage_options={"socket_connect_timeout": 5} if settings.rate_limit_storage == "redis" else {},
 )
 
 
@@ -45,6 +59,6 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     )
 
 
-CHAT_RATE_LIMIT = "30/minute"
-AUTH_RATE_LIMIT = "10/minute"
-DEFAULT_RATE_LIMIT = "100/minute"
+CHAT_RATE_LIMIT = settings.rate_limit_chat
+AUTH_RATE_LIMIT = settings.rate_limit_auth
+DEFAULT_RATE_LIMIT = settings.rate_limit_default

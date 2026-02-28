@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     # Agent配置
     agent_recursion_limit: int = 25  # Agent递归深度限制（工具调用最大轮次）
 
+    # 限流配置
+    rate_limit_storage: str = "redis"  # 限流存储方式: "redis" 或 "memory"
+    rate_limit_default: str = "100/minute"  # 默认限流
+    rate_limit_chat: str = "30/minute"  # 聊天接口限流
+    rate_limit_auth: str = "10/minute"  # 认证接口限流
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,

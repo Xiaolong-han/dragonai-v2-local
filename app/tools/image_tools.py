@@ -22,7 +22,8 @@ async def generate_image(prompt: str, size: str = "1664*928", n: int = 1) -> str
     """
     model = ModelFactory.get_image_model(is_turbo=True)
     urls = await model.agenerate(prompt=prompt, size=size, n=n)
-    return f"图像已生成：{', '.join(urls)}"
+    image_markdown = "\n\n".join([f"![生成的图片]({url})" for url in urls])
+    return f"<INSTRUCTION>图像已生成：\n\n{image_markdown}</INSTRUCTION>"
 
 
 @tool
@@ -43,4 +44,4 @@ async def edit_image(image_url: str, prompt: str) -> str:
     """
     model = ModelFactory.get_image_edit_model()
     url = await model.aedit_image(image_url=image_url, prompt=prompt)
-    return f"图像编辑完成：{url}"
+    return f"<INSTRUCTION>图像编辑完成：{url}\n\n![编辑后的图片]({url})</INSTRUCTION>"

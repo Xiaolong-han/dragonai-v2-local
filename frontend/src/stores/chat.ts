@@ -39,6 +39,7 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<ChatMessage[]>([])
   const loading = ref<boolean>(false)
   const sending = ref<boolean>(false)
+  let currentXhr: XMLHttpRequest | null = null
 
   async function fetchConversationHistory(conversationId: number) {
     loading.value = true
@@ -145,6 +146,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     const xhr = new XMLHttpRequest()
+    currentXhr = xhr
     let receivedLength = 0
     let isThinkingPhase = false
     
@@ -229,6 +231,7 @@ export const useChatStore = defineStore('chat', () => {
     
     xhr.onload = () => {
       console.log('[SSE] Request completed, status:', xhr.status)
+      currentXhr = null
       
       if (xhr.status === 401) {
         localStorage.removeItem('token')
@@ -253,6 +256,7 @@ export const useChatStore = defineStore('chat', () => {
     
     xhr.onerror = () => {
       console.error('[SSE] Request error')
+      currentXhr = null
       sending.value = false
       const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
       if (msgIndex !== -1) {
@@ -266,6 +270,20 @@ export const useChatStore = defineStore('chat', () => {
     
     xhr.ontimeout = () => {
       console.error('[SSE] Request timeout')
+      currentXhr = null
+      sending.value = false
+      const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
+      if (msgIndex !== -1) {
+        messages.value[msgIndex] = {
+          ...messages.value[msgIndex],
+          is_streaming: false
+        }
+      }
+    }
+    
+    xhr.onabort = () => {
+      console.log('[SSE] Request aborted')
+      currentXhr = null
       sending.value = false
       const msgIndex = messages.value.findIndex((m) => m.id === assistantMessageId)
       if (msgIndex !== -1) {
@@ -306,6 +324,14 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = []
   }
 
+  function cancelCurrentRequest() {
+    if (currentXhr) {
+      currentXhr.abort()
+      currentXhr = null
+    }
+    sending.value = false
+  }
+
   function toggleThinkingExpanded(messageId: number) {
     const msgIndex = messages.value.findIndex((m) => m.id === messageId)
     if (msgIndex !== -1) {
@@ -325,6 +351,7 @@ export const useChatStore = defineStore('chat', () => {
     sendMessageWithTool,
     regenerateMessage,
     clearMessages,
+    cancelCurrentRequest,
     toggleThinkingExpanded
   }
 })

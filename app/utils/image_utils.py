@@ -3,8 +3,8 @@ import mimetypes
 from pathlib import Path
 
 
-def resolve_image_source(image_source: str) -> str:
-    """解析图片源，返回可直接使用的URL
+async def resolve_image_source_async(image_source: str) -> str:
+    """异步解析图片源，返回可直接使用的URL
     
     支持：
     1. HTTP/HTTPS URL - 原样返回
@@ -28,16 +28,16 @@ def resolve_image_source(image_source: str) -> str:
     
     file_path = file_storage.get_file_path(image_source)
     if file_path and file_path.exists():
-        return _encode_local_file(file_path)
+        return await _encode_local_file(file_path)
     
     abs_path = Path(image_source)
     if abs_path.exists():
-        return _encode_local_file(abs_path)
+        return await _encode_local_file(abs_path)
     
     return image_source
 
 
-def _encode_local_file(file_path: Path) -> str:
+async def _encode_local_file(file_path: Path) -> str:
     """将本地文件编码为Base64数据URI
     
     Args:
@@ -46,17 +46,20 @@ def _encode_local_file(file_path: Path) -> str:
     Returns:
         Base64数据URI格式的字符串
     """
+    import aiofiles
+    
     mime_type, _ = mimetypes.guess_type(str(file_path))
     if not mime_type:
         mime_type = "image/jpeg"
     
-    with open(file_path, "rb") as f:
-        image_data = base64.b64encode(f.read()).decode("utf-8")
+    async with aiofiles.open(file_path, "rb") as f:
+        content = await f.read()
+        image_data = base64.b64encode(content).decode("utf-8")
     
     return f"data:{mime_type};base64,{image_data}"
 
 
-def build_openai_image_content(image_url: str, prompt: str) -> list:
+async def build_openai_image_content_async(image_url: str, prompt: str) -> list:
     """构建OpenAI格式的图片消息内容
     
     Args:
@@ -66,7 +69,7 @@ def build_openai_image_content(image_url: str, prompt: str) -> list:
     Returns:
         OpenAI格式的消息内容列表
     """
-    resolved_url = resolve_image_source(image_url)
+    resolved_url = await resolve_image_source_async(image_url)
     
     return [
         {"type": "image_url", "image_url": {"url": resolved_url}},
@@ -74,7 +77,7 @@ def build_openai_image_content(image_url: str, prompt: str) -> list:
     ]
 
 
-def build_qwen_image_content(image_source: str) -> dict:
+async def build_qwen_image_content_async(image_source: str) -> dict:
     """构建阿里百炼格式的图片内容
     
     Args:
@@ -83,5 +86,5 @@ def build_qwen_image_content(image_source: str) -> dict:
     Returns:
         阿里百炼格式的图片内容字典
     """
-    resolved_url = resolve_image_source(image_source)
+    resolved_url = await resolve_image_source_async(image_source)
     return {"image": resolved_url}

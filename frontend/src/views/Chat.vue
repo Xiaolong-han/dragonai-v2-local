@@ -65,9 +65,11 @@ watch(
     if (newId) {
       const numId = parseInt(newId as string, 10)
       if (!isNaN(numId) && numId !== currentConversationId.value) {
+        chatStore.cancelCurrentRequest()
         conversationStore.selectConversation(numId)
       }
     } else {
+      chatStore.cancelCurrentRequest()
       conversationStore.currentConversationId = null
       chatStore.clearMessages()
     }

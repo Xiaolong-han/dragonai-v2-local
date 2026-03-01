@@ -1,5 +1,6 @@
 """文件系统工具 - 文件读写、搜索和文档解析"""
 
+import asyncio
 import base64
 import fnmatch
 import logging
@@ -73,8 +74,26 @@ def _format_size(size: int) -> str:
     return f"{size:.1f}TB"
 
 
+def _ls_sync(path: str) -> str:
+    """同步列出目录"""
+    if path == "/":
+        items = _list_dir(STORAGE_DIR)
+        return "\n".join(items) if items else "storage 目录为空"
+    
+    resolved = _resolve_path(path)
+    
+    if not resolved.exists():
+        return f"错误：目录 '{path}' 不存在"
+    
+    if not resolved.is_dir():
+        return f"错误：'{path}' 不是目录"
+    
+    items = _list_dir(resolved)
+    return "\n".join(items) if items else f"目录 '{path}' 为空"
+
+
 @tool
-def ls(path: str = "/") -> str:
+async def ls(path: str = "/") -> str:
     """列出目录中的文件和子目录。
 
     用于探索文件系统，查找需要读取或编辑的文件。
@@ -88,21 +107,7 @@ def ls(path: str = "/") -> str:
         目录内容列表，包含文件名、类型和大小信息。
     """
     try:
-        if path == "/":
-            items = _list_dir(STORAGE_DIR)
-            return "\n".join(items) if items else "storage 目录为空"
-        
-        resolved = _resolve_path(path)
-        
-        if not resolved.exists():
-            return f"错误：目录 '{path}' 不存在"
-        
-        if not resolved.is_dir():
-            return f"错误：'{path}' 不是目录"
-        
-        items = _list_dir(resolved)
-        return "\n".join(items) if items else f"目录 '{path}' 为空"
-        
+        return await asyncio.to_thread(_ls_sync, path)
     except ValueError as e:
         return f"错误：{e}"
     except Exception as e:
@@ -126,7 +131,7 @@ def _list_dir(dir_path: Path) -> List[str]:
 
 
 @tool
-def read_file(
+async def read_file(
     file_path: str,
     offset: int = 0,
     limit: int = 100,
@@ -164,9 +169,9 @@ def read_file(
         ext = resolved.suffix.lower()
         
         if ext in IMAGE_EXTENSIONS:
-            return _read_image_file(resolved)
+            return await _read_image_file(resolved)
         
-        return _read_text_file(resolved, offset, limit)
+        return await _read_text_file(resolved, offset, limit)
         
     except ValueError as e:
         return f"错误：{e}"
@@ -176,20 +181,25 @@ def read_file(
         return f"读取文件时出错: {e}"
 
 
-def _read_image_file(file_path: Path) -> str:
+async def _read_image_file(file_path: Path) -> str:
     """读取图片文件并返回 base64 数据"""
+    import aiofiles
+    
     mime_type = IMAGE_MEDIA_TYPES.get(file_path.suffix.lower(), "image/png")
     
-    with open(file_path, "rb") as f:
-        image_data = base64.b64encode(f.read()).decode("utf-8")
+    async with aiofiles.open(file_path, "rb") as f:
+        content = await f.read()
+        image_data = base64.b64encode(content).decode("utf-8")
     
     return f"[图片文件: {file_path.name}]\n[Base64 数据: data:{mime_type};base64,{image_data[:100]}...]"
 
 
-def _read_text_file(file_path: Path, offset: int, limit: int) -> str:
+async def _read_text_file(file_path: Path, offset: int, limit: int) -> str:
     """读取文本文件"""
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    import aiofiles
+    
+    async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
+        content = await f.read()
     
     if not content.strip():
         return f"文件 '{file_path.name}' 为空"
@@ -218,7 +228,7 @@ def _read_text_file(file_path: Path, offset: int, limit: int) -> str:
 
 
 @tool
-def write_file(file_path: str, content: str) -> str:
+async def write_file(file_path: str, content: str) -> str:
     """创建新文件并写入内容。
 
     如果文件已存在，将返回错误。
@@ -231,6 +241,8 @@ def write_file(file_path: str, content: str) -> str:
     Returns:
         操作结果信息。
     """
+    import aiofiles
+    
     try:
         resolved = _resolve_path(file_path, for_write=True)
         
@@ -239,8 +251,8 @@ def write_file(file_path: str, content: str) -> str:
         
         resolved.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(resolved, "w", encoding="utf-8") as f:
-            f.write(content)
+        async with aiofiles.open(resolved, "w", encoding="utf-8") as f:
+            await f.write(content)
         
         logger.info(f"[SANDBOX] File created: {resolved}")
         virtual_path = _to_virtual_path(resolved)
@@ -253,7 +265,7 @@ def write_file(file_path: str, content: str) -> str:
 
 
 @tool
-def edit_file(
+async def edit_file(
     file_path: str,
     old_string: str,
     new_string: str,
@@ -273,6 +285,8 @@ def edit_file(
     Returns:
         操作结果信息。
     """
+    import aiofiles
+    
     try:
         resolved = _resolve_path(file_path)
         
@@ -282,8 +296,8 @@ def edit_file(
         if not resolved.is_file():
             return f"错误：'{file_path}' 不是文件"
         
-        with open(resolved, "r", encoding="utf-8") as f:
-            content = f.read()
+        async with aiofiles.open(resolved, "r", encoding="utf-8") as f:
+            content = await f.read()
         
         if old_string not in content:
             return f"错误：未找到要替换的内容。请确保 old_string 与文件内容完全匹配。"
@@ -300,8 +314,8 @@ def edit_file(
             new_content = content.replace(old_string, new_string, 1)
             occurrences = 1
         
-        with open(resolved, "w", encoding="utf-8") as f:
-            f.write(new_content)
+        async with aiofiles.open(resolved, "w", encoding="utf-8") as f:
+            await f.write(new_content)
         
         virtual_path = _to_virtual_path(resolved)
         return f"成功替换 {occurrences} 处内容: {virtual_path}"
@@ -312,8 +326,27 @@ def edit_file(
         return f"编辑文件时出错: {e}"
 
 
+def _glob_sync(pattern: str, path: str) -> str:
+    """同步执行 glob 搜索"""
+    if pattern.startswith("/"):
+        pattern = pattern[1:]
+    
+    base_dir = STORAGE_DIR if path == "/" else _resolve_path(path)
+    
+    results = []
+    for matched in base_dir.rglob(pattern):
+        if matched.is_file():
+            relative = matched.relative_to(STORAGE_DIR)
+            results.append(f"/storage/{relative.as_posix()}")
+    
+    if not results:
+        return f"未找到匹配 '{pattern}' 的文件"
+    
+    return "\n".join(sorted(results))
+
+
 @tool
-def glob(pattern: str, path: str = "/") -> str:
+async def glob(pattern: str, path: str = "/") -> str:
     """查找匹配模式的文件。
 
     支持标准 glob 模式：
@@ -334,22 +367,7 @@ def glob(pattern: str, path: str = "/") -> str:
         匹配的文件路径列表。
     """
     try:
-        if pattern.startswith("/"):
-            pattern = pattern[1:]
-        
-        base_dir = STORAGE_DIR if path == "/" else _resolve_path(path)
-        
-        results = []
-        for matched in base_dir.rglob(pattern):
-            if matched.is_file():
-                relative = matched.relative_to(STORAGE_DIR)
-                results.append(f"/storage/{relative.as_posix()}")
-        
-        if not results:
-            return f"未找到匹配 '{pattern}' 的文件"
-        
-        return "\n".join(sorted(results))
-        
+        return await asyncio.to_thread(_glob_sync, pattern, path)
     except ValueError as e:
         return f"错误：{e}"
     except Exception as e:
@@ -357,7 +375,7 @@ def glob(pattern: str, path: str = "/") -> str:
 
 
 @tool
-def grep(
+async def grep(
     pattern: str,
     path: str = "/",
     glob_pattern: Optional[str] = None,
@@ -378,6 +396,8 @@ def grep(
     Returns:
         搜索结果。
     """
+    import aiofiles
+    
     try:
         base_dir = STORAGE_DIR if path == "/" else _resolve_path(path)
         
@@ -391,8 +411,8 @@ def grep(
                     continue
             
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
+                async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
+                    content = await f.read()
                 
                 if pattern in content:
                     relative = file_path.relative_to(STORAGE_DIR)
@@ -418,6 +438,50 @@ def grep(
         return f"错误：{e}"
     except Exception as e:
         return f"搜索时出错: {e}"
+
+
+def _read_pdf_sync(file_path: Path, start_page: int, end_page: Optional[int]) -> tuple:
+    """同步读取 PDF 文件，返回 (total_pages, content_parts, total_text, needs_ocr)"""
+    from pypdf import PdfReader
+    
+    reader = PdfReader(str(file_path))
+    total_pages = len(reader.pages)
+    
+    actual_end = end_page if end_page else total_pages
+    
+    content_parts = []
+    content_parts.append(f"PDF 文件: {file_path.name}")
+    content_parts.append(f"总页数: {total_pages}")
+    content_parts.append(f"读取范围: 第 {start_page} 页 - 第 {actual_end} 页")
+    content_parts.append("-" * 50)
+    
+    total_text = ""
+    for page_num in range(start_page - 1, actual_end):
+        page = reader.pages[page_num]
+        text = page.extract_text()
+        if text.strip():
+            content_parts.append(f"\n=== 第 {page_num + 1} 页 ===\n")
+            content_parts.append(text)
+            total_text += text
+    
+    needs_ocr = not total_text.strip()
+    return total_pages, content_parts, total_text, needs_ocr
+
+
+def _render_pdf_page_sync(file_path: Path, page_num: int) -> str:
+    """同步渲染 PDF 页面为 base64 图片"""
+    import fitz
+    import base64
+    
+    doc = fitz.open(str(file_path))
+    page = doc[page_num]
+    mat = fitz.Matrix(2.0, 2.0)
+    pix = page.get_pixmap(matrix=mat)
+    img_data = pix.tobytes("png")
+    doc.close()
+    
+    img_base64 = base64.b64encode(img_data).decode("utf-8")
+    return f"data:image/png;base64,{img_base64}"
 
 
 @tool
@@ -451,44 +515,23 @@ async def read_pdf(file_path: str, start_page: int = 1, end_page: Optional[int] 
         return f"错误：文件 '{file_path}' 不是 PDF 格式"
     
     try:
-        from pypdf import PdfReader
-        
-        reader = PdfReader(str(resolved))
-        total_pages = len(reader.pages)
+        total_pages, content_parts, total_text, needs_ocr = await asyncio.to_thread(
+            _read_pdf_sync, resolved, start_page, end_page
+        )
         
         if start_page < 1:
             start_page = 1
         if start_page > total_pages:
             return f"错误：起始页码 {start_page} 超出范围，PDF 共 {total_pages} 页"
         
-        if end_page is None:
-            end_page = total_pages
-        elif end_page > total_pages:
-            end_page = total_pages
-        
-        content_parts = []
-        content_parts.append(f"PDF 文件: {resolved.name}")
-        content_parts.append(f"总页数: {total_pages}")
-        content_parts.append(f"读取范围: 第 {start_page} 页 - 第 {end_page} 页")
-        content_parts.append("-" * 50)
-        
-        total_text = ""
-        for page_num in range(start_page - 1, end_page):
-            page = reader.pages[page_num]
-            text = page.extract_text()
-            if text.strip():
-                content_parts.append(f"\n=== 第 {page_num + 1} 页 ===\n")
-                content_parts.append(text)
-                total_text += text
-        
-        if not total_text.strip() or use_ocr:
-            if not use_ocr and not total_text.strip():
+        if needs_ocr or use_ocr:
+            if not use_ocr and needs_ocr:
                 content_parts.append("\n⚠️ 检测到这是扫描版 PDF（无文本层）")
                 content_parts.append("请设置 use_ocr=True 来使用 OCR 提取文字")
                 return "\n".join(content_parts)
             
             if use_ocr:
-                return await _ocr_pdf(resolved, start_page, end_page)
+                return await _ocr_pdf(resolved, start_page, end_page or total_pages)
         
         return "\n".join(content_parts)
         
@@ -501,12 +544,10 @@ async def _ocr_pdf(file_path: Path, start_page: int, end_page: int) -> str:
     try:
         import fitz
         from app.llm.model_factory import ModelFactory
-        from app.utils.image_utils import build_openai_image_content
-        import tempfile
+        from app.utils.image_utils import build_openai_image_content_async
         import base64
         
-        doc = fitz.open(str(file_path))
-        total_pages = len(doc)
+        total_pages = await asyncio.to_thread(lambda: len(fitz.open(str(file_path))))
         
         content_parts = []
         content_parts.append(f"PDF 文件: {file_path.name}")
@@ -517,16 +558,10 @@ async def _ocr_pdf(file_path: Path, start_page: int, end_page: int) -> str:
         model = ModelFactory.get_vision_model(is_ocr=True)
         
         for page_num in range(start_page - 1, min(end_page, total_pages)):
-            page = doc[page_num]
-            mat = fitz.Matrix(2.0, 2.0)
-            pix = page.get_pixmap(matrix=mat)
-            
-            img_data = pix.tobytes("png")
-            img_base64 = base64.b64encode(img_data).decode("utf-8")
-            img_url = f"data:image/png;base64,{img_base64}"
+            img_url = await asyncio.to_thread(_render_pdf_page_sync, file_path, page_num)
             
             prompt = "请提取这张图片中的所有文字内容，保持原有格式。只输出文字，不要添加任何说明。"
-            content = build_openai_image_content(img_url, prompt)
+            content = await build_openai_image_content_async(img_url, prompt)
             messages = [{"role": "user", "content": content}]
             
             result = await model.ainvoke(messages)
@@ -534,13 +569,45 @@ async def _ocr_pdf(file_path: Path, start_page: int, end_page: int) -> str:
             content_parts.append(f"\n=== 第 {page_num + 1} 页 ===\n")
             content_parts.append(result.content)
         
-        doc.close()
         return "\n".join(content_parts)
         
     except ImportError:
         return "错误：OCR 模式需要安装 PyMuPDF 库。请运行: pip install PyMuPDF"
     except Exception as e:
         return f"OCR 处理 PDF 时出错: {str(e)}"
+
+
+def _read_word_sync(file_path: Path) -> str:
+    """同步读取 Word 文档"""
+    from docx import Document
+    
+    doc = Document(str(file_path))
+    
+    content_parts = []
+    content_parts.append(f"Word 文档: {file_path.name}")
+    content_parts.append("-" * 50)
+    
+    for para in doc.paragraphs:
+        if para.text.strip():
+            style_name = para.style.name if para.style else "Normal"
+            if "Heading" in style_name:
+                content_parts.append(f"\n## {para.text}")
+            else:
+                content_parts.append(para.text)
+    
+    if doc.tables:
+        content_parts.append("\n" + "=" * 50)
+        content_parts.append("表格内容:")
+        content_parts.append("=" * 50)
+        
+        for table_idx, table in enumerate(doc.tables, 1):
+            content_parts.append(f"\n--- 表格 {table_idx} ---")
+            for row in table.rows:
+                row_text = " | ".join(cell.text.strip() for cell in row.cells)
+                if row_text.strip(" |"):
+                    content_parts.append(row_text)
+    
+    return "\n".join(content_parts)
 
 
 @tool
@@ -571,35 +638,6 @@ async def read_word(file_path: str) -> str:
         return "错误：暂不支持旧版 .doc 格式，请转换为 .docx 格式后重试"
     
     try:
-        from docx import Document
-        
-        doc = Document(str(resolved))
-        
-        content_parts = []
-        content_parts.append(f"Word 文档: {resolved.name}")
-        content_parts.append("-" * 50)
-        
-        for para in doc.paragraphs:
-            if para.text.strip():
-                style_name = para.style.name if para.style else "Normal"
-                if "Heading" in style_name:
-                    content_parts.append(f"\n## {para.text}")
-                else:
-                    content_parts.append(para.text)
-        
-        if doc.tables:
-            content_parts.append("\n" + "=" * 50)
-            content_parts.append("表格内容:")
-            content_parts.append("=" * 50)
-            
-            for table_idx, table in enumerate(doc.tables, 1):
-                content_parts.append(f"\n--- 表格 {table_idx} ---")
-                for row in table.rows:
-                    row_text = " | ".join(cell.text.strip() for cell in row.cells)
-                    if row_text.strip(" |"):
-                        content_parts.append(row_text)
-        
-        return "\n".join(content_parts)
-        
+        return await asyncio.to_thread(_read_word_sync, resolved)
     except Exception as e:
         return f"读取 Word 文档时出错: {str(e)}"

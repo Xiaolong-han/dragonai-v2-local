@@ -132,8 +132,9 @@ class KnowledgeService:
         file_path = storage_dir / filename
         
         content = await file.read()
-        with open(file_path, "wb") as f:
-            f.write(content)
+        import aiofiles
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(content)
         
         return f"/storage/knowledge_base/{filename}"
 

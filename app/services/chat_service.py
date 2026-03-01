@@ -1,6 +1,7 @@
 
 import logging
 import json
+import asyncio
 from typing import List, Optional, AsyncGenerator, Dict, Any, Union
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,8 @@ from app.llm.model_factory import ModelFactory
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+AGENT_TIMEOUT = 300
 
 
 class ChatService:
@@ -125,31 +128,42 @@ class ChatService:
 
             logger.debug(f"[CHAT] 开始流式执行Agent")
             tool_call_count = 0
-            async for stream_mode, data in agent.astream(
-                {"messages": [{"role": "user", "content": full_context}]},
-                config,
-                stream_mode=["messages", "updates"]
-            ):
-                    
-                if stream_mode == "messages":
-                    message, metadata = data
-                    formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
-                    if formatted:
-                        yield formatted
-                elif stream_mode == "updates":
-                    logger.debug(f"[CHAT-DEBUG] updates data: {data}")
-                    for source, update in data.items():
-                        logger.debug(f"[CHAT-DEBUG] source={source}, update keys={update.keys() if isinstance(update, dict) else type(update)}")
-                        if source in ("model", "tools"):
-                            formatted_list = ChatService._format_update({source: update}, enable_thinking)
-                            for formatted in formatted_list:
-                                if formatted.get("type") == "tool_call":
-                                    tool_call_count += 1
-                                    if tool_call_count > 5:
-                                        logger.error(f"[CHAT] 工具调用过多，强制停止")
-                                        break
-                                if formatted.get("type") not in ("unknown", None):
-                                    yield formatted
+            
+            async def _process_stream():
+                nonlocal tool_call_count
+                async for stream_mode, data in agent.astream(
+                    {"messages": [{"role": "user", "content": full_context}]},
+                    config,
+                    stream_mode=["messages", "updates"]
+                ):
+                    if stream_mode == "messages":
+                        message, metadata = data
+                        formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
+                        if formatted:
+                            yield formatted
+                    elif stream_mode == "updates":
+                        logger.debug(f"[CHAT-DEBUG] updates data: {data}")
+                        for source, update in data.items():
+                            logger.debug(f"[CHAT-DEBUG] source={source}, update keys={update.keys() if isinstance(update, dict) else type(update)}")
+                            if source in ("model", "tools"):
+                                formatted_list = ChatService._format_update({source: update}, enable_thinking)
+                                for formatted in formatted_list:
+                                    if formatted.get("type") == "tool_call":
+                                        tool_call_count += 1
+                                        if tool_call_count > 5:
+                                            logger.error(f"[CHAT] 工具调用过多，强制停止")
+                                            return
+                                    if formatted.get("type") not in ("unknown", None):
+                                        yield formatted
+            
+            try:
+                async with asyncio.timeout(AGENT_TIMEOUT):
+                    async for event in _process_stream():
+                        yield event
+            except asyncio.TimeoutError:
+                logger.error(f"[CHAT] Agent执行超时，conversation_id={conversation_id}")
+                yield {"type": "error", "data": {"message": "请求处理超时，请稍后重试"}}
+                return
 
             logger.info(f"[CHAT] Agent流式执行完成")
         except Exception as e:
@@ -166,24 +180,29 @@ class ChatService:
                     )
                     config = AgentFactory.get_agent_config(str(conversation_id))
                     
-                    async for stream_mode, data in agent.astream(
-                        {"messages": [{"role": "user", "content": full_context}]},
-                        config,
-                        stream_mode=["messages", "updates"]
-                    ):
-                        if stream_mode == "messages":
-                            message, metadata = data
-                            formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
-                            if formatted:
-                                yield formatted
-                        elif stream_mode == "updates":
-                            for source, update in data.items():
-                                if source in ("model", "tools"):
-                                    formatted_list = ChatService._format_update({source: update}, enable_thinking)
-                                    for formatted in formatted_list:
-                                        if formatted.get("type") not in ("unknown", None):
-                                            yield formatted
+                    async with asyncio.timeout(AGENT_TIMEOUT):
+                        async for stream_mode, data in agent.astream(
+                            {"messages": [{"role": "user", "content": full_context}]},
+                            config,
+                            stream_mode=["messages", "updates"]
+                        ):
+                            if stream_mode == "messages":
+                                message, metadata = data
+                                formatted = ChatService._format_stream_message(message, metadata, enable_thinking)
+                                if formatted:
+                                    yield formatted
+                            elif stream_mode == "updates":
+                                for source, update in data.items():
+                                    if source in ("model", "tools"):
+                                        formatted_list = ChatService._format_update({source: update}, enable_thinking)
+                                        for formatted in formatted_list:
+                                            if formatted.get("type") not in ("unknown", None):
+                                                yield formatted
                     logger.info(f"[CHAT] 重试执行成功")
+                    return
+                except asyncio.TimeoutError:
+                    logger.error(f"[CHAT] 重试执行超时，conversation_id={conversation_id}")
+                    yield {"type": "error", "data": {"message": "请求处理超时，请稍后重试"}}
                     return
                 except Exception as retry_error:
                     logger.error(f"[CHAT] 重试执行失败: {str(retry_error)}")

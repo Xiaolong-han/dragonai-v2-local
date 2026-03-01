@@ -56,8 +56,9 @@ class QwenImageModel:
             file_path = file_storage.base_dir / "images" / filename
             file_path.parent.mkdir(parents=True, exist_ok=True)
             
-            with open(file_path, "wb") as f:
-                f.write(response.content)
+            import aiofiles
+            async with aiofiles.open(file_path, "wb") as f:
+                await f.write(response.content)
             
             return generate_signed_url(relative_path, expires_in_seconds=86400)
     
@@ -210,8 +211,8 @@ class QwenImageModel:
     
     async def _prepare_image_content(self, image_source: str) -> dict:
         """准备图片内容，支持多种格式"""
-        from app.utils.image_utils import build_qwen_image_content
-        return build_qwen_image_content(image_source)
+        from app.utils.image_utils import build_qwen_image_content_async
+        return await build_qwen_image_content_async(image_source)
 
     async def aedit_image(
         self,

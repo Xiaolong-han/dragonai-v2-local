@@ -8,7 +8,7 @@
         @regenerate="handleRegenerate"
       />
       <ChatInput
-        :loading="chatStore.sending"
+        :loading="isCurrentSending"
         :disabled="chatStore.loading"
         @send="handleSendMessage"
       />
@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch, onMounted } from 'vue'
+import { watch, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useConversationStore } from '@/stores/conversation'
@@ -40,7 +40,10 @@ const chatStore = useChatStore()
 
 const { currentConversationId } = storeToRefs(conversationStore)
 
-// 从 URL 参数或 props 获取会话 ID
+const isCurrentSending = computed(() => {
+  return currentConversationId.value ? chatStore.isSending(currentConversationId.value) : false
+})
+
 function getConversationIdFromRoute(): number | null {
   const id = props.conversationId || route.params.conversationId
   if (id) {
@@ -50,49 +53,44 @@ function getConversationIdFromRoute(): number | null {
   return null
 }
 
-// 同步 URL 参数到 store
-async function syncConversationFromRoute() {
+// 同步路由到状态
+async function syncFromRoute() {
   const routeId = getConversationIdFromRoute()
-  if (routeId && routeId !== currentConversationId.value) {
-    conversationStore.selectConversation(routeId)
+  if (routeId) {
+    if (routeId !== currentConversationId.value) {
+      conversationStore.selectConversation(routeId)
+    }
+    if (routeId !== chatStore.currentConversationId) {
+      chatStore.setCurrentConversation(routeId)
+      await chatStore.fetchConversationHistory(routeId)
+    }
+  } else {
+    conversationStore.currentConversationId = null
+    chatStore.setCurrentConversation(null)
   }
 }
 
-// 监听路由参数变化
+// 监听路由变化
 watch(
   () => route.params.conversationId,
-  async (newId) => {
-    if (newId) {
-      const numId = parseInt(newId as string, 10)
-      if (!isNaN(numId) && numId !== currentConversationId.value) {
-        chatStore.cancelCurrentRequest()
-        conversationStore.selectConversation(numId)
-      }
-    } else {
-      chatStore.cancelCurrentRequest()
-      conversationStore.currentConversationId = null
-      chatStore.clearMessages()
-    }
-  },
+  syncFromRoute,
   { immediate: true }
 )
 
-// 监听当前会话 ID 变化，更新 URL
+// 监听当前会话ID变化（处理新建会话的情况）
 watch(
   currentConversationId,
   async (newId) => {
     if (newId) {
-      // 更新 URL，但不触发导航
+      // 同步URL
       const currentRouteId = route.params.conversationId
       if (currentRouteId !== String(newId)) {
         router.replace(`/chat/${newId}`)
       }
-      await chatStore.fetchConversationHistory(newId)
-    } else {
-      chatStore.clearMessages()
-      // 如果没有会话 ID，重定向到 /chat
-      if (route.params.conversationId) {
-        router.replace('/chat')
+      // 确保chatStore也同步
+      if (newId !== chatStore.currentConversationId) {
+        chatStore.setCurrentConversation(newId)
+        await chatStore.fetchConversationHistory(newId)
       }
     }
   }
@@ -116,7 +114,7 @@ function handleRegenerate(messageIndex: number) {
 }
 
 onMounted(() => {
-  syncConversationFromRoute()
+  syncFromRoute()
 })
 </script>
 

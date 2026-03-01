@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     rate_limit_chat: str = "30/minute"  # 聊天接口限流
     rate_limit_auth: str = "10/minute"  # 认证接口限流
 
+    # 请求大小限制
+    max_request_size: int = 10 * 1024 * 1024  # 10MB
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,

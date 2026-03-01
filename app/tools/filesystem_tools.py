@@ -2,12 +2,16 @@
 
 import base64
 import fnmatch
+import logging
 from pathlib import Path
 from typing import Optional, List
 
 from langchain_core.tools import tool
 
 from app.config import settings
+from app.core.sandbox import FileSandbox
+
+logger = logging.getLogger(__name__)
 
 IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
 IMAGE_MEDIA_TYPES = {
@@ -21,55 +25,30 @@ IMAGE_MEDIA_TYPES = {
 STORAGE_DIR = Path(settings.storage_dir).resolve()
 
 
-def _resolve_path(file_path: str) -> Path:
-    """解析文件路径
-    
-    输入格式：
-    - documents/xxx.txt (相对路径)
-    - /documents/xxx.txt (虚拟路径)
-    - C:\\xxx (系统绝对路径，需验证权限)
+def _resolve_path(file_path: str, for_write: bool = False) -> Path:
+    """解析文件路径（使用沙箱验证）
     
     Args:
         file_path: 文件路径
+        for_write: 是否用于写入操作
         
     Returns:
         解析后的 Path 对象
         
     Raises:
-        ValueError: 路径不合法或不在允许的目录内
+        ValueError: 路径不合法或在沙箱外
     """
-    path = Path(file_path)
-    
-    if path.is_absolute():
-        resolved = path.resolve()
-        if not _is_subpath(resolved, STORAGE_DIR):
-            raise ValueError(f"路径 '{file_path}' 不在允许的目录内")
-        return resolved
-    
-    relative = file_path.lstrip("/")
-    return (STORAGE_DIR / relative).resolve()
-
-
-def _is_subpath(path: Path, parent: Path) -> bool:
-    """检查 path 是否是 parent 的子路径"""
     try:
-        path.relative_to(parent)
-        return True
-    except ValueError:
-        return False
+        if for_write:
+            return FileSandbox.validate_path_for_write(file_path)
+        return FileSandbox.validate_path(file_path)
+    except PermissionError as e:
+        raise ValueError(str(e))
 
 
 def _to_virtual_path(path: Path) -> str:
     """将物理路径转换为虚拟路径"""
-    path = path.resolve()
-    
-    try:
-        relative = path.relative_to(STORAGE_DIR)
-        return f"/storage/{relative.as_posix()}"
-    except ValueError:
-        pass
-    
-    return str(path)
+    return FileSandbox.to_virtual_path(path)
 
 
 def _format_with_line_numbers(lines: List[str], start_line: int = 1) -> str:
@@ -253,7 +232,7 @@ def write_file(file_path: str, content: str) -> str:
         操作结果信息。
     """
     try:
-        resolved = _resolve_path(file_path)
+        resolved = _resolve_path(file_path, for_write=True)
         
         if resolved.exists():
             return f"错误：文件 '{file_path}' 已存在。如需修改，请先读取后使用 edit_file 工具。"
@@ -263,6 +242,7 @@ def write_file(file_path: str, content: str) -> str:
         with open(resolved, "w", encoding="utf-8") as f:
             f.write(content)
         
+        logger.info(f"[SANDBOX] File created: {resolved}")
         virtual_path = _to_virtual_path(resolved)
         return f"文件已创建: {virtual_path}"
         

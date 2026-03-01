@@ -69,7 +69,7 @@ const handleLogout = async () => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    authStore.logout()
+    await authStore.logout()
     router.push('/login')
   } catch {
   }

@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import create_access_token
-from app.core.dependencies import get_current_active_user
+from app.core.dependencies import get_current_active_user, get_token_from_header
 from app.core.rate_limit import limiter, AUTH_RATE_LIMIT
+from app.core.token_blacklist import TokenBlacklist
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
 from app.services.user_service import UserService, get_user_service
 from app.config import settings
@@ -67,3 +68,16 @@ async def login(
 @router.get("/me", response_model=UserResponse)
 async def read_users_me(current_user: UserResponse = Depends(get_current_active_user)):
     return current_user
+
+
+@router.post("/logout")
+async def logout(
+    token: str = Depends(get_token_from_header),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """用户登出
+    
+    将当前 Token 加入黑名单，使其立即失效。
+    """
+    await TokenBlacklist.add(token)
+    return {"message": "Successfully logged out"}

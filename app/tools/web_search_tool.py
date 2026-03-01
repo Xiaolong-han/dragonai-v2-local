@@ -1,12 +1,12 @@
 """联网搜索工具"""
 
 from langchain_core.tools import tool
-from tavily import TavilyClient
+from tavily import AsyncTavilyClient
 from app.config import settings
 
-tavily_client = TavilyClient(api_key=settings.tavily_api_key)
+async_tavily_client = AsyncTavilyClient(api_key=settings.tavily_api_key)
 
-
+    
 @tool
 async def web_search(query: str, max_results: int = 5) -> str:
     """
@@ -21,7 +21,7 @@ async def web_search(query: str, max_results: int = 5) -> str:
     Returns:
         搜索结果
     """
-    results = tavily_client.search(query, search_depth="advanced",
+    results = await async_tavily_client.search(query, search_depth="advanced",
                                    include_raw_content=False, 
                                    max_results=max_results, topic="general")
     return results

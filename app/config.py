@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_dir: str = "./logs"
 
-    model_general_fast: str = "qwen-plus-2025-07-28"
-    model_general_expert: str = "qwen-plus-2025-07-28"
+    model_general_fast: str = "qwen-plus-2025-09-11"
+    model_general_expert: str = "qwen-plus-2025-12-01"
 
     model_vision_ocr: str = "qwen-vl-ocr"
     model_vision_general: str = "qwen3-vl-plus"

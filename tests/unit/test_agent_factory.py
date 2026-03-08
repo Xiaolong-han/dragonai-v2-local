@@ -17,8 +17,8 @@ class TestAgentFactoryWarmup:
     async def test_warmup_creates_all_configs(self):
         """测试预热创建全部 4 种配置"""
         with patch.object(AgentFactory, 'get_checkpointer') as mock_checkpointer, \
-             patch('app.agents.agent_factory.create_agent') as mock_create_agent, \
-             patch('app.agents.agent_factory.ModelFactory.get_general_model') as mock_model:
+             patch('app.agents.agent_factory.create_deep_agent') as mock_create_agent, \
+             patch('app.agents.agent_factory.get_chat_model') as mock_model:
             
             mock_checkpointer.return_value = MagicMock()
             mock_create_agent.return_value = MagicMock()
@@ -36,8 +36,8 @@ class TestAgentFactoryWarmup:
     async def test_warmup_continues_on_failure(self):
         """测试预热失败时继续创建其他配置"""
         with patch.object(AgentFactory, 'get_checkpointer') as mock_checkpointer, \
-             patch('app.agents.agent_factory.create_agent') as mock_create_agent, \
-             patch('app.agents.agent_factory.ModelFactory.get_general_model') as mock_model:
+             patch('app.agents.agent_factory.create_deep_agent') as mock_create_agent, \
+             patch('app.agents.agent_factory.get_chat_model') as mock_model:
             
             mock_checkpointer.return_value = MagicMock()
             mock_model.return_value = MagicMock()
@@ -65,8 +65,8 @@ class TestAgentFactoryWarmup:
         execution_times = []
         
         with patch.object(AgentFactory, 'get_checkpointer') as mock_checkpointer, \
-             patch('app.agents.agent_factory.create_agent') as mock_create_agent, \
-             patch('app.agents.agent_factory.ModelFactory.get_general_model') as mock_model:
+             patch('app.agents.agent_factory.create_deep_agent') as mock_create_agent, \
+             patch('app.agents.agent_factory.get_chat_model') as mock_model:
             
             mock_checkpointer.return_value = MagicMock()
             mock_model.return_value = MagicMock()
@@ -119,8 +119,8 @@ class TestAgentFactoryWarmup:
     async def test_create_chat_agent_uses_cache(self):
         """测试创建 Agent 使用缓存"""
         with patch.object(AgentFactory, 'get_checkpointer') as mock_checkpointer, \
-             patch('app.agents.agent_factory.create_agent') as mock_create_agent, \
-             patch('app.agents.agent_factory.ModelFactory.get_general_model') as mock_model:
+             patch('app.agents.agent_factory.create_deep_agent') as mock_create_agent, \
+             patch('app.agents.agent_factory.get_chat_model') as mock_model:
             
             mock_checkpointer.return_value = MagicMock()
             mock_create_agent.return_value = MagicMock()

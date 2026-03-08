@@ -1,4 +1,10 @@
-"""工具模块 - 统一导出所有Agent可用工具"""
+"""工具模块 - 统一导出所有Agent可用工具
+
+注意：create_deep_agent 内置了以下文件系统工具，无需重复添加：
+- ls, read_file, write_file, edit_file, glob, grep
+
+本模块只包含业务特定的工具。
+"""
 
 from .rag_tool import search_knowledge_base
 from .web_search_tool import web_search
@@ -8,12 +14,6 @@ from .code_tools import code_assist
 from .translation_tools import translate_text
 from .time_tools import get_current_time
 from .filesystem_tools import (
-    ls,
-    read_file,
-    write_file,
-    edit_file,
-    glob,
-    grep,
     read_pdf,
     read_word,
 )
@@ -28,7 +28,6 @@ ALL_TOOLS = [
     code_assist,
     translate_text,
     get_current_time,
-    read_file,
     read_pdf,
     read_word,
 ]
@@ -44,12 +43,6 @@ __all__ = [
     "code_assist",
     "translate_text",
     "get_current_time",
-    "ls",
-    "read_file",
-    "write_file",
-    "edit_file",
-    "glob",
-    "grep",
     "read_pdf",
     "read_word",
 ]

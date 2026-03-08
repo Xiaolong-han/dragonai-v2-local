@@ -19,7 +19,6 @@ from app.api.middleware import (
 )
 from app.api.exception_handlers import dragonai_exception_handler, rate_limit_exceeded_handler
 from app.agents.agent_factory import AgentFactory
-from app.llm.model_factory import ModelFactory
 from app.api.v1 import auth, conversations, files, knowledge, tools, models, chat, monitoring
 
 
@@ -47,7 +46,6 @@ async def lifespan(app: FastAPI):
         logger.warning(f"[CACHE WARMUP] Cache warmup failed, continuing startup: {e}")
     yield
     await AgentFactory.close_checkpointer()
-    await ModelFactory.close_all()
     await redis_client.close()
     await close_db()
     logger.info("Shutting down DragonAI")

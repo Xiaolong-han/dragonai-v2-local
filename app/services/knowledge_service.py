@@ -8,12 +8,12 @@ import aiofiles
 
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
+from langchain_community.embeddings import DashScopeEmbeddings
 
 from app.config import settings
 from app.rag import (
     DocumentLoader,
     DocumentSplitter,
-    ModelFactory,
     HybridRetriever,
     get_reranker,
     BaseReranker,
@@ -21,6 +21,19 @@ from app.rag import (
 from app.storage.vector_store import vector_store_manager
 
 logger = logging.getLogger(__name__)
+
+
+def get_embeddings(model_name: str = None, **kwargs) -> DashScopeEmbeddings:
+    """获取 Embedding 模型
+    
+    Args:
+        model_name: 模型名称，默认使用配置中的 model_embedding
+    """
+    return DashScopeEmbeddings(
+        model=model_name or settings.model_embedding,
+        dashscope_api_key=settings.qwen_api_key,
+        **kwargs
+    )
 
 _knowledge_service_instance: Optional["KnowledgeService"] = None
 
@@ -35,7 +48,7 @@ class KnowledgeService:
         chunk_overlap: int = None,
     ):
         self.collection_name = collection_name or self.DEFAULT_COLLECTION
-        self.embeddings = ModelFactory.get_embedding()
+        self.embeddings = get_embeddings()
         self.document_loader = DocumentLoader()
         self.document_splitter = DocumentSplitter(
             chunk_size=chunk_size or 1000,

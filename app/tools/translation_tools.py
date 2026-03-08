@@ -2,7 +2,8 @@
 
 import json
 from langchain_core.tools import tool
-from app.llm.model_factory import ModelFactory
+from app.llm.dashscope_client import get_dashscope_client
+from app.config import settings
 
 
 @tool
@@ -20,7 +21,7 @@ async def translate_text(text: str, target_lang: str, source_lang: str = None) -
     Returns:
         翻译后的文本（JSON格式）
     """
-    model = ModelFactory.get_translation_model(is_plus=False)
+    client = get_dashscope_client()
     
     source_info = source_lang if source_lang else "自动检测"
     
@@ -28,8 +29,13 @@ async def translate_text(text: str, target_lang: str, source_lang: str = None) -
         {"role": "user", "content": f"你是专业翻译助手。准确翻译文本，保持原意和语气，只输出翻译结果。将以下{source_info}文本翻译成{target_lang}：\n\n{text}"}
     ]
     
-    result = await model.ainvoke(messages)
-    translated_text = result.content
+    response = await client.generation_call(
+        model=settings.model_translation_fast,
+        messages=messages,
+        temperature=0.3
+    )
+    
+    translated_text = client.parse_text_response(response)
     
     return json.dumps({
         "type": "translation",

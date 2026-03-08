@@ -21,7 +21,6 @@ class Settings(BaseSettings):
 
     qwen_api_key: str = ""
     qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    qwen_image_base_url: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
 
     tavily_api_key: str = ""
 
@@ -31,7 +30,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_dir: str = "./logs"
 
-    model_general_fast: str = "qwen-flash-2025-07-28"
+    model_general_fast: str = "qwen-plus-2025-07-28"
     model_general_expert: str = "qwen-plus-2025-07-28"
 
     model_vision_ocr: str = "qwen-vl-ocr"

@@ -2,7 +2,8 @@
 
 import json
 from langchain_core.tools import tool
-from app.llm.model_factory import ModelFactory
+from app.llm.dashscope_client import get_dashscope_client
+from app.config import settings
 
 
 @tool
@@ -22,7 +23,8 @@ async def code_assist(prompt: str, language: str = "python") -> str:
     Returns:
         完整代码及解释说明（JSON格式）
     """
-    model = ModelFactory.get_coder_model(is_plus=False)
+    client = get_dashscope_client()
+    
     messages = [
         {"role": "system", "content": f"""你是一个专业的{language}编程助手。
 请提供清晰、高效、有注释的代码，并解释关键逻辑。
@@ -33,11 +35,18 @@ async def code_assist(prompt: str, language: str = "python") -> str:
 3. 格式清晰，使用 markdown 代码块"""},
         {"role": "user", "content": prompt}
     ]
-    result = await model.ainvoke(messages)
+    
+    response = await client.generation_call(
+        model=settings.model_coder_fast,
+        messages=messages,
+        temperature=0.7
+    )
+    
+    code_content = client.parse_text_response(response)
     
     return json.dumps({
         "type": "code",
         "language": language,
         "prompt": prompt,
-        "code": result.content
+        "code": code_content
     })

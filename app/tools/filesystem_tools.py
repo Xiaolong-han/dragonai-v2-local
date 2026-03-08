@@ -543,8 +543,8 @@ async def _ocr_pdf(file_path: Path, start_page: int, end_page: int) -> str:
     """使用 OCR 处理扫描版 PDF"""
     try:
         import fitz
-        from app.llm.model_factory import ModelFactory
-        from app.utils.image_utils import build_openai_image_content_async
+        from app.llm.dashscope_client import get_dashscope_client
+        from app.config import settings
         import base64
         
         total_pages = await asyncio.to_thread(lambda: len(fitz.open(str(file_path))))
@@ -555,19 +555,29 @@ async def _ocr_pdf(file_path: Path, start_page: int, end_page: int) -> str:
         content_parts.append(f"OCR 读取范围: 第 {start_page} 页 - 第 {end_page} 页")
         content_parts.append("-" * 50)
         
-        model = ModelFactory.get_vision_model(is_ocr=True)
+        client = get_dashscope_client()
         
         for page_num in range(start_page - 1, min(end_page, total_pages)):
             img_url = await asyncio.to_thread(_render_pdf_page_sync, file_path, page_num)
             
-            prompt = "请提取这张图片中的所有文字内容，保持原有格式。只输出文字，不要添加任何说明。"
-            content = await build_openai_image_content_async(img_url, prompt)
-            messages = [{"role": "user", "content": content}]
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"image": img_url},
+                        {"text": "请提取这张图片中的所有文字内容，保持原有格式。只输出文字，不要添加任何说明。"}
+                    ]
+                }
+            ]
             
-            result = await model.ainvoke(messages)
+            response = await client.multimodal_call(
+                model=settings.model_vision_ocr,
+                messages=messages
+            )
+            text = client.parse_text_response(response)
             
             content_parts.append(f"\n=== 第 {page_num + 1} 页 ===\n")
-            content_parts.append(result.content)
+            content_parts.append(text)
         
         return "\n".join(content_parts)
         

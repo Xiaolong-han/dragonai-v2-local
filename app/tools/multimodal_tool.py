@@ -1,8 +1,9 @@
 """多模态工具 - 图片理解和OCR"""
 
 from langchain_core.tools import tool
-from app.llm.model_factory import ModelFactory
-from app.utils.image_utils import build_openai_image_content_async
+from app.llm.dashscope_client import get_dashscope_client
+from app.config import settings
+from app.utils.image_utils import resolve_image_source_async
 
 
 @tool
@@ -19,14 +20,26 @@ async def understand_image(image_url: str) -> str:
     Returns:
         图片内容的详细描述
     """
-    model = ModelFactory.get_vision_model(is_ocr=False)
+    client = get_dashscope_client()
     
-    prompt = "请详细描述这张图片的内容，包括场景、物体、人物、颜色等细节。"
-    content = await build_openai_image_content_async(image_url, prompt)
-    messages = [{"role": "user", "content": content}]
+    resolved_url = await resolve_image_source_async(image_url)
     
-    result = await model.ainvoke(messages)
-    return result.content
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"image": resolved_url},
+                {"text": "请详细描述这张图片的内容，包括场景、物体、人物、颜色等细节。"}
+            ]
+        }
+    ]
+    
+    response = await client.multimodal_call(
+        model=settings.model_vision_general,
+        messages=messages
+    )
+    
+    return client.parse_text_response(response)
 
 
 @tool
@@ -43,11 +56,23 @@ async def ocr_document(image_url: str) -> str:
     Returns:
         图片中提取的文字内容
     """
-    model = ModelFactory.get_vision_model(is_ocr=True)
+    client = get_dashscope_client()
     
-    prompt = "请提取这张图片中的所有文字内容，保持原有格式。"
-    content = await build_openai_image_content_async(image_url, prompt)
-    messages = [{"role": "user", "content": content}]
+    resolved_url = await resolve_image_source_async(image_url)
     
-    result = await model.ainvoke(messages)
-    return result.content
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"image": resolved_url},
+                {"text": "请提取这张图片中的所有文字内容，保持原有格式。"}
+            ]
+        }
+    ]
+    
+    response = await client.multimodal_call(
+        model=settings.model_vision_ocr,
+        messages=messages
+    )
+    
+    return client.parse_text_response(response)

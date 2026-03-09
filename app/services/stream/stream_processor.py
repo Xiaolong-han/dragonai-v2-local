@@ -52,12 +52,23 @@ class StreamProcessor:
         self,
         conversation_id: int,
         content: str,
+        user_id: Optional[int] = None,
         attachments: Optional[List[str]] = None,
         is_expert: bool = False,
         enable_thinking: bool = False,
         agent_factory=None
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """处理用户消息 - 支持多模态输入和Agent工具调用"""
+        """处理用户消息 - 支持多模态输入和Agent工具调用
+        
+        Args:
+            conversation_id: 对话ID
+            content: 用户消息内容
+            user_id: 用户ID（用于长期记忆命名空间隔离）
+            attachments: 附件列表
+            is_expert: 是否使用专家模型
+            enable_thinking: 是否启用深度思考
+            agent_factory: Agent工厂实例
+        """
         try:
             logger.info(f"[STREAM] 开始处理消息: conversation_id={conversation_id}")
 
@@ -72,7 +83,7 @@ class StreamProcessor:
                 is_expert=is_expert,
                 enable_thinking=enable_thinking
             )
-            config = agent_factory.get_agent_config(str(conversation_id))
+            config = agent_factory.get_agent_config(str(conversation_id), user_id=user_id)
 
             logger.debug(f"[STREAM] 开始流式执行Agent")
             
@@ -95,7 +106,7 @@ class StreamProcessor:
             
             if AgentErrorClassifier.is_retryable(error_type):
                 async for event in self._retry_on_tool_call_error(
-                    conversation_id, full_context, is_expert, enable_thinking, agent_factory
+                    conversation_id, full_context, is_expert, enable_thinking, user_id, agent_factory
                 ):
                     yield event
             else:
@@ -121,6 +132,7 @@ class StreamProcessor:
         full_context: str,
         is_expert: bool,
         enable_thinking: bool,
+        user_id: Optional[int] = None,
         agent_factory=None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """处理 tool_calls 错误并重试"""
@@ -137,7 +149,7 @@ class StreamProcessor:
                 is_expert=is_expert,
                 enable_thinking=enable_thinking
             )
-            config = agent_factory.get_agent_config(str(conversation_id))
+            config = agent_factory.get_agent_config(str(conversation_id), user_id=user_id)
             
             async with asyncio.timeout(settings.agent_timeout):
                 async for event in self.process_agent_stream(

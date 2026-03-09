@@ -10,7 +10,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from deepagents import create_deep_agent
+from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
 from deepagents.backends.filesystem import FilesystemBackend
+from langgraph.store.base import BaseStore
+from langgraph.store.memory import InMemoryStore
 
 from app.config import settings
 from app.tools.code_tools import code_assist
@@ -99,7 +102,30 @@ SUBAGENTS = [
 
 SYSTEM_PROMPT = """你是一个任务分发助手，负责将用户请求分发给合适的子智能体处理。
 
-**技能使用规则**：
+## 记忆系统
+
+你有以下记忆存储路径：
+
+**长期记忆（跨会话持久化）**：
+- `/memories/preferences.txt` - 用户偏好设置
+- `/memories/knowledge/` - 知识库和笔记
+- `/memories/instructions.txt` - 自改进指令
+
+**会话记忆（摘要历史）**：
+- `/conversation/` - 当前会话的摘要历史
+
+**临时工作区（会话级）**：
+- `/workspace/` - 临时文件和草稿
+
+## 记忆使用规则
+
+1. **用户偏好**：当用户表达偏好时，保存到 `/memories/preferences.txt`
+2. **重要信息**：关键决策、项目信息等保存到 `/memories/knowledge/`
+3. **自改进**：根据用户反馈更新 `/memories/instructions.txt`
+4. **会话开始**：读取 `/memories/preferences.txt` 和 `/memories/instructions.txt`
+
+## 技能使用规则
+
 - 当用户请求匹配某个技能时，使用 read_file 读取技能文件
 - 按照技能中的流程执行任务
 
@@ -168,6 +194,8 @@ class AgentFactory:
     _initialized: bool = False
     _agent_cache: Dict[str, Any] = {}
     _skills_backend: Optional[FilesystemBackend] = None
+    _store: Optional[BaseStore] = None
+    _store_context: Optional[object] = None
 
     @classmethod
     async def init_checkpointer(cls) -> bool:
@@ -227,11 +255,109 @@ class AgentFactory:
         return cls._checkpointer
 
     @classmethod
-    def _get_skills_backend(cls) -> FilesystemBackend:
-        """获取文件系统后端（用于 create_deep_agent 的 backend 参数）
+    async def init_store(cls) -> bool:
+        """初始化长期记忆存储 (BaseStore)
         
-        后端的 root_dir 配置了存储目录，技能文件存放在 {root_dir}/skills/ 目录下。
-        create_deep_agent 的 skills 参数指定的路径相对于此 root_dir。
+        用于 StoreBackend 持久化跨线程记忆。
+        
+        Returns:
+            bool: 是否成功使用 PostgreSQL
+        """
+        try:
+            if settings.database_url:
+                from langgraph.store.postgres import PostgresStore
+                cls._store_context = PostgresStore.from_conn_string(settings.database_url)
+                cls._store = cls._store_context.__enter__()
+                cls._store.setup()
+                logger.info("[AGENT] PostgresStore initialized for long-term memory")
+                return True
+        except Exception as e:
+            logger.warning(f"[AGENT] PostgresStore init failed, fallback to InMemoryStore: {e}")
+        
+        cls._store = InMemoryStore()
+        cls._store_context = None
+        return False
+
+    @classmethod
+    async def close_store(cls) -> None:
+        """关闭长期记忆存储"""
+        if cls._store_context and hasattr(cls._store_context, '__exit__'):
+            try:
+                cls._store_context.__exit__(None, None, None)
+                logger.info("[AGENT] PostgresStore connection closed")
+            except Exception as e:
+                logger.error(f"[AGENT] Failed to close PostgresStore: {e}")
+        cls._store = None
+        cls._store_context = None
+
+    @classmethod
+    def get_store(cls) -> BaseStore:
+        """获取长期记忆存储实例
+        
+        Returns:
+            BaseStore 实例
+        """
+        if cls._store is None:
+            raise RuntimeError("Store not initialized. Call init_store() first.")
+        return cls._store
+
+    @classmethod
+    def _make_backend(cls, runtime) -> CompositeBackend:
+        """创建复合后端 - 路由持久化路径到 StoreBackend
+        
+        路径规划：
+        - /memories/     → StoreBackend (跨会话持久化)
+        - /conversation/ → StoreBackend (会话摘要历史)
+        - /skills/       → FilesystemBackend (本地技能文件)
+        - 其他           → StateBackend (临时存储)
+        """
+        def get_user_id(ctx) -> str:
+            context = ctx.runtime.context
+            if context is None:
+                return "default"
+            return str(context.get("user_id", "default"))
+        
+        def get_thread_id(ctx) -> str:
+            context = ctx.runtime.context
+            if context is None:
+                return "default"
+            return str(context.get("thread_id", "default"))
+        
+        memories_backend = StoreBackend(
+            runtime,
+            namespace=lambda ctx: (
+                get_user_id(ctx),
+                "memories"
+            )
+        )
+        
+        conversation_backend = StoreBackend(
+            runtime,
+            namespace=lambda ctx: (
+                get_user_id(ctx),
+                "conversations",
+                get_thread_id(ctx)
+            )
+        )
+        
+        skills_backend = cls._get_skills_backend()
+        
+        return CompositeBackend(
+            default=StateBackend(runtime),
+            routes={
+                "/memories/": memories_backend,
+                "/conversation/": conversation_backend,
+                "/skills/": skills_backend,
+            }
+        )
+
+    @classmethod
+    def _get_skills_backend(cls) -> FilesystemBackend:
+        """获取文件系统后端（用于技能文件）
+        
+        注意：CompositeBackend 会剥离路由前缀，所以 root_dir 应该是 skills 目录本身。
+        例如：/skills/my_skill/SKILL.md → 剥离前缀后 → /my_skill/SKILL.md
+        FilesystemBackend 的 root_dir 应该是 skills 目录，这样解析后就是正确的路径。
         
         Returns:
             FilesystemBackend 实例
@@ -247,11 +373,12 @@ class AgentFactory:
                 skills_dir.mkdir(parents=True, exist_ok=True)
                 logger.debug(f"[AGENT] Created skills directory: {skills_dir}")
             
+            # root_dir 应该是 skills 目录，因为 CompositeBackend 会剥离 /skills/ 前缀
             cls._skills_backend = FilesystemBackend(
-                root_dir=storage_dir,
+                root_dir=skills_dir,
                 virtual_mode=True,
             )
-            logger.debug(f"[AGENT] Initialized skills backend: {storage_dir}")
+            logger.debug(f"[AGENT] Initialized skills backend: {skills_dir}")
         return cls._skills_backend
 
     @classmethod
@@ -271,6 +398,7 @@ class AgentFactory:
         - SubAgentMiddleware: 子智能体委托 (task)
         - SummarizationMiddleware: 自动上下文摘要
         - SkillsMiddleware: 技能加载 (通过 skills 参数配置)
+        - 长期记忆: 通过 CompositeBackend 路由 /memories/ 到 StoreBackend
 
         Args:
             is_expert: 是否使用专家模型
@@ -291,14 +419,14 @@ class AgentFactory:
         )
 
         checkpointer = cls.get_checkpointer()
+        store = cls.get_store()
         
-        backend = cls._get_skills_backend()
-
         agent = create_deep_agent(
             model=model,
             system_prompt=SYSTEM_PROMPT,
             checkpointer=checkpointer,
-            backend=backend,
+            store=store,
+            backend=cls._make_backend,
             skills=["/skills/"],
             subagents=SUBAGENTS,
         )
@@ -354,21 +482,30 @@ class AgentFactory:
         }
 
     @classmethod
-    def get_agent_config(cls, conversation_id: str) -> dict:
+    def get_agent_config(cls, conversation_id: str, user_id: Optional[int] = None) -> dict:
         """获取Agent配置 - 用于区分不同对话线程
         
         Args:
             conversation_id: 对话ID
+            user_id: 用户ID（用于长期记忆命名空间隔离）
             
         Returns:
-            配置字典，包含 thread_id 和 recursion_limit
+            配置字典，包含 thread_id、user_id 和 recursion_limit
         """
-        return {
+        config = {
             "configurable": {
                 "thread_id": f"conversation_{conversation_id}"
             },
             "recursion_limit": settings.agent_recursion_limit
         }
+        
+        if user_id is not None:
+            config["context"] = {
+                "user_id": user_id,
+                "thread_id": conversation_id
+            }
+        
+        return config
 
     @classmethod
     async def reset_conversation_state(cls, conversation_id: str) -> bool:

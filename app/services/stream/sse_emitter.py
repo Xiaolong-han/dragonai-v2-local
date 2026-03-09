@@ -53,6 +53,7 @@ class SSEEmitter:
             async for event in self.stream_processor.process_message(
                 conversation_id=conversation_id,
                 content=content,
+                user_id=user_id,
                 attachments=attachments,
                 is_expert=is_expert,
                 enable_thinking=enable_thinking

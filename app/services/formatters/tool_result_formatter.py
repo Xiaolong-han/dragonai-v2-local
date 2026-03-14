@@ -214,7 +214,7 @@ class ToolResultFormatter:
             
             details_parts = []
             if prompt:
-                details_parts.append(f"编辑指令: {prompt}")
+                details_parts.append(f"提示词: {prompt}")
             if original:
                 details_parts.append(f"原图: {original}")
             

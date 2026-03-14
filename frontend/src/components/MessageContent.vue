@@ -31,19 +31,8 @@
           
           <!-- 工具详情（可折叠） -->
           <div class="tool-details" v-show="expandedTools[index]">
-            <!-- 图片工具：显示图片 -->
-            <div v-if="isImageTool(part.tool.name) && part.tool.links && part.tool.links.length > 0" class="tool-images">
-              <img 
-                v-for="(link, linkIndex) in part.tool.links" 
-                :key="linkIndex"
-                :src="getFullUrl(link.url)"
-                :alt="link.title"
-                class="tool-image"
-                @click="previewImage(getFullUrl(link.url))"
-              />
-            </div>
             <!-- 非图片工具：链接卡片 -->
-            <div v-else-if="part.tool.links && part.tool.links.length > 0" class="tool-links">
+            <div v-if="part.tool.links && part.tool.links.length > 0" class="tool-links">
               <template v-for="(link, linkIndex) in part.tool.links" :key="linkIndex">
                 <!-- 有 URL：显示为链接 -->
                 <a v-if="link.url" :href="getFullUrl(link.url)" target="_blank" class="link-card">
@@ -69,7 +58,28 @@
             </div>
             <!-- 详细内容 -->
             <div v-if="part.tool.details" class="tool-detail-content">
-              <pre>{{ truncateDetails(part.tool.details) }}</pre>
+              <!-- 图片工具：格式化显示详情 -->
+              <div v-if="isImageTool(part.tool.name)" class="image-details">
+                <div v-for="(line, idx) in part.tool.details.split('\n')" :key="idx" class="detail-line">
+                  <template v-if="line.startsWith('提示词:') || line.startsWith('编辑指令:')">
+                    <span class="detail-label">{{ line.split(':')[0] }}:</span>
+                    <span class="detail-value">{{ line.split(':').slice(1).join(':') }}</span>
+                  </template>
+
+                  <template v-else-if="line.startsWith('尺寸:')">
+                    <span class="detail-label">尺寸:</span>
+                    <span class="detail-value">{{ line.split(':')[1] }}</span>
+                  </template>
+                  <!-- 忽略原图行（不显示） -->
+                  <template v-else-if="line.startsWith('原图:')">
+                  </template>
+                  <template v-else>
+                    {{ line }}
+                  </template>
+                </div>
+              </div>
+              <!-- 其他工具：完整展示详情 -->
+              <pre v-else>{{ truncateDetails(part.tool.details) }}</pre>
             </div>
           </div>
         </div>
@@ -92,6 +102,7 @@
 
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
 import { Loading, CircleCheck, ArrowDown, Link, ArrowRight, Document } from '@element-plus/icons-vue'
 import { renderMarkdown } from '@/utils/markdown'
 import type { ToolCall } from '@/stores/chat'
@@ -213,6 +224,12 @@ function truncateDetails(details: string, maxLength: number = 500): string {
     return details
   }
   return details.substring(0, maxLength) + '...'
+}
+
+function extractUrl(details: string): string | null {
+  // 从详情中提取 URL
+  const urlMatch = details.match(/https?:\/\/[^\s]+/)
+  return urlMatch ? urlMatch[0] : null
 }
 
 function isImageTool(name: string): boolean {
@@ -501,23 +518,121 @@ function previewImage(url: string) {
   background: rgba(255, 255, 255, 0.3);
 }
 
-.tool-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 12px;
+.tool-image-wrapper {
+  position: relative;
+  display: inline-block;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .tool-image {
   max-width: 100%;
   max-height: 200px;
   border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.2s ease;
+  display: block;
   object-fit: contain;
 }
 
-.tool-image:hover {
-  transform: scale(1.02);
+.tool-image-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.tool-image-wrapper:hover .tool-image-overlay {
+  opacity: 1;
+}
+
+.image-action-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.image-action-btn:hover {
+  background: #fff;
+  transform: scale(1.1);
+}
+
+/* 原图链接样式 */
+.image-source-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.source-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.source-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #1890ff;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.source-link:hover {
+  color: #40a9ff;
+  transform: translateX(2px);
+}
+
+.source-link .el-icon {
+  font-size: 12px;
+}
+
+/* 图片详情样式 */
+.image-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.detail-value {
+  color: var(--text-primary);
+  flex: 1;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.5;
 }
 </style>

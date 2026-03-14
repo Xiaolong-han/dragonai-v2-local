@@ -21,21 +21,17 @@ class QwenImageModel:
         self.api_key = api_key or settings.qwen_api_key
         self.base_url = settings.qwen_image_base_url
     
-    async def _download_and_save_image(self, image_url: str, prefix: str = "generated") -> str:
-        """下载远程图片并保存到本地存储
+    async def _download_and_save_image(self, image_url: str, prefix: str = "generated") -> None:
+        """下载远程图片并保存到本地存储（仅作为备份，不返回 URL）
         
         Args:
             image_url: 远程图片URL
             prefix: 文件名前缀（generated 或 edited）
-            
-        Returns:
-            带签名的访问URL
         """
         import uuid
         from datetime import datetime
         from pathlib import Path
         from app.storage import file_storage
-        from app.security import generate_signed_url
         
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(image_url)
@@ -59,8 +55,6 @@ class QwenImageModel:
             import aiofiles
             async with aiofiles.open(file_path, "wb") as f:
                 await f.write(response.content)
-            
-            return generate_signed_url(relative_path, expires_in_seconds=86400)
     
     def _build_generate_data(self, prompt, size, n, negative_prompt, prompt_extend, watermark):
         """构建生成请求数据
@@ -173,19 +167,19 @@ class QwenImageModel:
     async def agenerate(
         self, 
         prompt: str, 
-        size: str = "1664*928", # 1664*928
+        size: str = "1664*928",
         n: int = 1,
         negative_prompt: str = None,
         prompt_extend: bool = True,
         watermark: bool = False
     ) -> List[str]:
-        """生成图像（异步）并保存到本地"""
-        # 1. 构建请求头， 参考阿里百炼文档
+        """生成图像（异步），下载到本地备份，但返回阿里云 URL"""
+        # 1. 构建请求头
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        # 2. 构建请求数据， 参考阿里百炼文档
+        # 2. 构建请求数据
         data = self._build_generate_data(prompt, size, n, negative_prompt, prompt_extend, watermark)
         # 3. 发送异步请求，超时时间120秒
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -196,18 +190,16 @@ class QwenImageModel:
             # 4.2 解析响应中的图像URL
             result = response.json()
             remote_urls = self._parse_image_urls(result)
-            # 4.3 下载并保存图像
-            local_paths = []
+            # 4.3 下载到本地备份（但返回阿里云 URL）
             for url in remote_urls:
                 try:
-                    local_path = await self._download_and_save_image(url, prefix="generated")
-                    local_paths.append(local_path)
+                    await self._download_and_save_image(url, prefix="generated")
                 except Exception as e:
                     import logging
-                    logging.getLogger(__name__).warning(f"保存图片失败: {e}, 使用远程URL")
-                    local_paths.append(url)
+                    logging.getLogger(__name__).warning(f"保存图片备份失败: {e}")
             
-            return local_paths
+            # 4.4 返回阿里云 URL（不是本地 URL）
+            return remote_urls
     
     async def _prepare_image_content(self, image_source: str) -> dict:
         """准备图片内容，支持多种格式"""
@@ -218,13 +210,13 @@ class QwenImageModel:
         self,
         image_url: str,
         prompt: str,
-        size: str = None, # 不指定时，总像素数接近 1024*1024，宽高比与输入图像相同
+        size: str = None,
         n: int = 1,
         negative_prompt: str = None,
         prompt_extend: bool = True,
         watermark: bool = False
     ) -> str:
-        """编辑图像（异步），当前仅支持单张图像编辑"""
+        """编辑图像（异步），下载到本地备份，但返回阿里云 URL"""
         import logging
         logger = logging.getLogger(__name__)
         
@@ -256,10 +248,12 @@ class QwenImageModel:
             
             urls = self._parse_image_urls(result)
             if urls:
+                # 下载到本地备份（但返回阿里云 URL）
                 try:
-                    local_path = await self._download_and_save_image(urls[0], prefix="edited")
-                    return local_path
+                    await self._download_and_save_image(urls[0], prefix="edited")
                 except Exception as e:
-                    logger.warning(f"Failed to save edited image: {e}, using remote URL")
-                    return urls[0]
+                    logger.warning(f"保存编辑图片备份失败: {e}")
+                
+                # 返回阿里云 URL
+                return urls[0]
             return ""

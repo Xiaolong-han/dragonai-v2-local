@@ -305,6 +305,62 @@ function toggleThinking() {
   font-size: 14px;
 }
 
+/* 图片容器样式 */
+.message-text :deep(.image-container) {
+  position: relative;
+  display: inline-block;
+  max-width: 300px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.message-text :deep(.image-container img) {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+/* 图片悬停遮罩 */
+.message-text :deep(.image-overlay) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.message-text :deep(.image-container:hover .image-overlay) {
+  opacity: 1;
+}
+
+/* 下载按钮 */
+.message-text :deep(.download-btn) {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.message-text :deep(.download-btn:hover) {
+  background: #fff;
+  transform: scale(1.1);
+}
+
 .message-text :deep(th),
 .message-text :deep(td) {
   padding: 10px 12px;

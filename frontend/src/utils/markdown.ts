@@ -98,6 +98,17 @@ function processImageUrls(html: string): string {
     return `<div class="image-container"><img src="${match}" alt="生成的图片" /><div class="image-overlay"><button class="download-btn" onclick="downloadImage('${match}', 'image.png')" title="下载图片"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button></div></div>`
   })
   
+  // 处理链接中的图片 URL（如 [点击查看图片](https://xxx.png)）
+  // 将指向图片的链接转换为图片显示
+  const linkImagePattern = new RegExp(
+    `<a[^>]*href="(https?:\\/\\/[^"]+${imageExtensions.source.slice(1)})"[^>]*>([^<]*)<\\/a>`,
+    'gi'
+  )
+  
+  html = html.replace(linkImagePattern, (match, url, text) => {
+    return `<div class="image-container"><img src="${url}" alt="${text || '生成的图片'}" /><div class="image-overlay"><button class="download-btn" onclick="downloadImage('${url}', 'image.png')" title="下载图片"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button></div></div>`
+  })
+  
   return html
 }
 

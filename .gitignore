@@ -206,7 +206,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 .idea/
-storage/
+# storage/  # Commented out to track app/storage code files
 .env.env
 .coverage
 prompt_add_for_skill.md

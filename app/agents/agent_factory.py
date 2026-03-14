@@ -198,10 +198,10 @@ class AgentFactory:
         return [
             SkillsMiddleware(backend=cls._get_skills_backend(), sources=["/skills/"]),
             PatchToolCallsMiddleware(),
-            ContextEditingMiddleware(edits=[
-                ClearToolUsesEdit(trigger=3000, keep=3, clear_tool_inputs=False, placeholder="[cleared]")
-            ]),
-            SummarizationMiddleware(model=summary_model, max_tokens_before_summary=4000, messages_to_keep=10),
+            # ContextEditingMiddleware(edits=[
+            #     ClearToolUsesEdit(trigger=3000, keep=3, clear_tool_inputs=False, placeholder="[cleared]")
+            # ]),
+            SummarizationMiddleware(model=summary_model, max_tokens_before_summary=8000, messages_to_keep=6),
             ToolCallLimitMiddleware(run_limit=settings.agent_tool_call_limit, exit_behavior="end"),
             ModelCallLimitMiddleware(run_limit=50, exit_behavior="end"),
             ToolRetryMiddleware(max_retries=3, backoff_factor=2.0),

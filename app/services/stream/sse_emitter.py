@@ -55,7 +55,8 @@ class SSEEmitter:
                 content=content,
                 attachments=attachments,
                 is_expert=is_expert,
-                enable_thinking=enable_thinking
+                enable_thinking=enable_thinking,
+                user_id=user_id
             ):
                 if isinstance(event, dict):
                     event_type = event.get("type")

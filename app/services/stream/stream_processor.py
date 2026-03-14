@@ -49,11 +49,12 @@ class StreamProcessor:
         attachments: Optional[List[str]] = None,
         is_expert: bool = False,
         enable_thinking: bool = False,
-        agent_factory=None
+        agent_factory=None,
+        user_id: Optional[int] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """处理用户消息 - 支持多模态输入和Agent工具调用"""
         try:
-            logger.info(f"[STREAM] 开始处理消息: conversation_id={conversation_id}")
+            logger.info(f"[STREAM] 开始处理消息: conversation_id={conversation_id}, user_id={user_id}")
 
             full_context = self._build_context(content, attachments)
             logger.debug(f"[STREAM] 上下文准备完成，长度: {len(full_context)}")
@@ -66,7 +67,7 @@ class StreamProcessor:
                 is_expert=is_expert,
                 enable_thinking=enable_thinking
             )
-            config = agent_factory.get_agent_config(str(conversation_id))
+            config = agent_factory.get_agent_config(str(conversation_id), user_id=user_id)
 
             logger.debug(f"[STREAM] 开始流式执行Agent")
             

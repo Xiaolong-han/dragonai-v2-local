@@ -21,11 +21,13 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from deepagents.middleware.skills import SkillsMiddleware
 from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
+from deepagents.middleware.filesystem import FilesystemMiddleware
 from deepagents.backends.filesystem import FilesystemBackend
+from deepagents.backends import CompositeBackend, StateBackend
 
 from app.config import settings
-from app.tools import ALL_TOOLS
 from app.llm.model_factory import ModelFactory
+from app.agents.backends import BackendManager
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,36 @@ SYSTEM_PROMPT = """你是一个强大的AI助手，能够帮助用户处理各�
 - 禁止在没有读取技能文件的情况下直接回答相关任务
 - 读取技能文件后，必须严格按照技能中的流程和模板执行任务
 
+**文件系统路径规则（非常重要）**：
+你有一个虚拟文件系统，不同路径有不同的用途和持久化策略：
+
+1. **临时文件 `/`** (默认路径)
+   - 用途：存放临时生成的文件、代码、数据
+   - 持久化：仅当前会话有效，会话结束后自动清除
+   - 示例：`/temp.py`, `/analysis_result.json`
+
+2. **技能文件 `/skills/`** (只读)
+   - 用途：存放预定义的技能文件(SKILL)，包含特定任务的执行流程
+   - 持久化：存储在本地文件系统，跨会话持久
+   - 访问：只读，不要尝试写入
+   - 示例：`/skills/web_search.md`, `/skills/code_review.md`
+
+3. **长期记忆 `/memories/`** (读写，用户隔离)
+   - 用途：存放需要跨会话保留的用户特定信息，如用户画像、偏好设置、学习记录
+   - 持久化：存储在 PostgreSQL 数据库，按用户ID隔离，永久保留
+   - 隔离机制：每个用户的记忆存储在独立的 namespace 中
+   - 使用场景：
+     * 用户说"记住我喜欢Python" -> 写入 `/memories/user_profile.md`
+     * 用户纠正你的错误 -> 记录到 `/memories/lessons.md`
+     * 需要记住的配置信息 -> 保存到 `/memories/config.md`
+   - 示例：`/memories/user_profile.md`, `/memories/preferences.json`
+   - **注意**：用户只能访问自己的 `/memories/`，无法看到其他用户的记忆
+
+**记忆管理最佳实践**：
+- 主动记录用户偏好和重要信息到 `/memories/`
+- 使用结构化格式（如 Markdown、JSON）便于后续读取
+- 定期整理记忆文件，避免信息过于分散
+
 请根据用户的需求，合理选择和使用工具。如果用户请求不明确，请主动询问以澄清需求。
 """
 
@@ -59,9 +91,9 @@ class AgentFactory:
     @classmethod
     async def init_checkpointer(cls) -> bool:
         """初始化 checkpointer (异步版本)
-        
+
         在应用启动时调用，创建数据库连接并初始化表结构。
-        
+
         Returns:
             bool: 是否成功使用 PostgreSQL
         """
@@ -76,15 +108,26 @@ class AgentFactory:
                 return True
         except Exception as e:
             logger.warning(f"[AGENT] AsyncPostgresSaver init failed, fallback to InMemorySaver: {e}")
-        
+
         cls._checkpointer = InMemorySaver()
         cls._context_manager = None
         return False
 
     @classmethod
+    async def init_backends(cls) -> bool:
+        """初始化所有后端 (checkpointer + store + composite)"""
+        # 初始化 checkpointer (原有逻辑)
+        checkpointer_result = await cls.init_checkpointer()
+
+        # 初始化 composite backend (包含 PostgresStore)
+        store_result = await BackendManager.initialize()
+
+        return checkpointer_result and store_result
+
+    @classmethod
     async def close_checkpointer(cls) -> None:
         """关闭 checkpointer 连接 (异步版本)
-        
+
         在应用关闭时调用，清理数据库连接和缓存。
         """
         if cls._context_manager and hasattr(cls._context_manager, '__aexit__'):
@@ -98,6 +141,12 @@ class AgentFactory:
         cls._agent_cache.clear()
         cls._skills_backend = None
         logger.info("[AGENT] Cache cleared")
+
+    @classmethod
+    async def close_backends(cls) -> None:
+        """关闭所有后端连接"""
+        await cls.close_checkpointer()  # 原有逻辑
+        await BackendManager.close()     # 关闭 PostgresStore 等
 
     @classmethod
     def get_checkpointer(cls) -> Union[AsyncPostgresSaver, InMemorySaver]:
@@ -175,11 +224,21 @@ class AgentFactory:
         
         middleware = cls._build_middleware()
         
+        # 获取 store，如果 BackendManager 未初始化则使用 None
+        try:
+            store = BackendManager.get_store()
+        except RuntimeError:
+            store = None
+
+        # 延迟导入避免循环导入
+        from app.tools import ALL_TOOLS
+
         agent = create_agent(
             model=main_model,
             tools=ALL_TOOLS,
             system_prompt=SYSTEM_PROMPT,
             checkpointer=cls.get_checkpointer(),
+            store=store,  # 传入 PostgresStore 用于长期记忆
             middleware=middleware,
         )
         
@@ -192,15 +251,27 @@ class AgentFactory:
     def _build_middleware(cls) -> list:
         """构建Agent中间件列表"""
         fallback_model = ModelFactory.get_general_model(is_expert=False, enable_thinking=False)
-        # 摘要模型使用非流式模式，避免流式输出到前端
         summary_model = ModelFactory.get_general_model(is_expert=False, enable_thinking=False, streaming=False)
-        
+
+        try:
+            composite_factory = BackendManager.get_composite_factory()
+        except RuntimeError:
+            storage_dir = Path(settings.storage_dir).resolve()
+            if not storage_dir.exists():
+                storage_dir.mkdir(parents=True, exist_ok=True)
+            skills_dir = storage_dir / "skills"
+            if not skills_dir.exists():
+                skills_dir.mkdir(parents=True, exist_ok=True)
+            fallback_filesystem = FilesystemBackend(root_dir=storage_dir, virtual_mode=True)
+            composite_factory = lambda rt: CompositeBackend(
+                default=StateBackend(rt),
+                routes={"/skills/": fallback_filesystem}
+            )
+
         return [
-            SkillsMiddleware(backend=cls._get_skills_backend(), sources=["/skills/"]),
+            FilesystemMiddleware(backend=composite_factory),
+            SkillsMiddleware(backend=composite_factory, sources=["/skills/"]),
             PatchToolCallsMiddleware(),
-            # ContextEditingMiddleware(edits=[
-            #     ClearToolUsesEdit(trigger=3000, keep=3, clear_tool_inputs=False, placeholder="[cleared]")
-            # ]),
             SummarizationMiddleware(model=summary_model, max_tokens_before_summary=8000, messages_to_keep=6),
             ToolCallLimitMiddleware(run_limit=settings.agent_tool_call_limit, exit_behavior="end"),
             ModelCallLimitMiddleware(run_limit=50, exit_behavior="end"),
@@ -254,19 +325,26 @@ class AgentFactory:
         }
 
     @classmethod
-    def get_agent_config(cls, conversation_id: str) -> dict:
+    def get_agent_config(cls, conversation_id: str, user_id: int | None = None) -> dict:
         """获取Agent配置 - 用于区分不同对话线程
-        
+
         Args:
             conversation_id: 对话ID
-            
+            user_id: 用户ID，用于长期记忆的 namespace 隔离
+
         Returns:
-            配置字典，包含 thread_id 和 recursion_limit
+            配置字典，包含 thread_id、recursion_limit 和 user_id
         """
-        return {
+        config = {
             "configurable": {
                 "thread_id": f"conversation_{conversation_id}"
             },
             "recursion_limit": settings.agent_recursion_limit
         }
+
+        # 添加 user_id 到 context，用于 StoreBackend 的 namespace
+        if user_id is not None:
+            config["context"] = {"user_id": user_id}
+
+        return config
 
